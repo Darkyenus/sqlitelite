@@ -24,9 +24,9 @@ package io.requery.android.database.sqlite;
 import android.annotation.SuppressLint;
 import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteTransactionListener;
+import android.os.CancellationSignal;
+import android.os.OperationCanceledException;
 import android.os.ParcelFileDescriptor;
-import androidx.core.os.CancellationSignal;
-import androidx.core.os.OperationCanceledException;
 import io.requery.android.database.CursorWindow;
 
 /**
@@ -783,8 +783,7 @@ public final class SQLiteSession {
      * or invalid number of bind arguments.
      * @throws OperationCanceledException if the operation was canceled.
      */
-    public long executeForLastInsertedRowId(String sql, Object[] bindArgs, int connectionFlags,
-            CancellationSignal cancellationSignal) {
+    public long executeForLastInsertedRowId(String sql, Object[] bindArgs, int connectionFlags, CancellationSignal cancellationSignal) {
         if (sql == null) {
             throw new IllegalArgumentException("sql must not be null.");
         }

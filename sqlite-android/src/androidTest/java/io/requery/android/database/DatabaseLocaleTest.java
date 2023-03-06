@@ -81,7 +81,7 @@ public class DatabaseLocaleTest {
             items.add(c.getString(0));
             Log.i("LocaleTest", "...." + c.getString(0));
         }
-        String[] result = items.toArray(new String[items.size()]);
+        String[] result = items.toArray(new String[0]);
         assertEquals(STRINGS.length, result.length);
         c.close();
         return result;
@@ -95,33 +95,9 @@ public class DatabaseLocaleTest {
         assertEquals(STRINGS, results);
     }
 
-    @Suppress // not supporting localized collators
-    @MediumTest
-    @Test
-    public void testLocaleenUS() {
-        insertStrings();
-        Log.i("LocaleTest", "about to call setLocale en_US");
-        mDatabase.setLocale(new Locale("en", "US"));
-        String[] results;
-        results = query("SELECT data FROM test ORDER BY data COLLATE LOCALIZED ASC");
-
-        // The database code currently uses PRIMARY collation strength,
-        // meaning that all versions of a character compare equal (regardless
-        // of case or accents), leaving the "cote" flavors in database order.
-        assertEquals(results, new String[] {
-                STRINGS[4],  // "boy"
-                STRINGS[0],  // sundry forms of "cote"
-                STRINGS[1],
-                STRINGS[2],
-                STRINGS[3],
-                STRINGS[6],  // "COTE"
-                STRINGS[5],  // "dog"
-        });
-    }
-
     @SmallTest
     @Test
-    public void testHoge() throws Exception {
+    public void testHoge() {
         Cursor cursor = null;
         try {
             String expectedString = new String(new int[] {0xFE000}, 0, 1);

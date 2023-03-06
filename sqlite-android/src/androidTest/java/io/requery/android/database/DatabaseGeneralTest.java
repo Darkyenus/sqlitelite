@@ -26,9 +26,15 @@ import android.database.sqlite.SQLiteException;
 import android.os.Parcel;
 import android.util.Log;
 import android.util.Pair;
-
+import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.LargeTest;
+import androidx.test.filters.MediumTest;
+import androidx.test.filters.SmallTest;
+import androidx.test.filters.Suppress;
+import io.requery.android.database.sqlite.SQLiteDatabase;
+import io.requery.android.database.sqlite.SQLiteStatement;
 import junit.framework.Assert;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,23 +46,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import androidx.test.core.app.ApplicationProvider;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.filters.LargeTest;
-import androidx.test.filters.MediumTest;
-import androidx.test.filters.SmallTest;
-import androidx.test.filters.Suppress;
-import io.requery.android.database.sqlite.SQLiteDatabase;
-import io.requery.android.database.sqlite.SQLiteStatement;
-
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@SuppressWarnings({"deprecated", "ResultOfMethodCallIgnored"})
+@SuppressWarnings({"deprecated", "ResultOfMethodCallIgnored", "deprecation"})
 @RunWith(AndroidJUnit4.class)
 public class DatabaseGeneralTest {
     private static final String TAG = "DatabaseGeneralTest";
@@ -102,68 +99,6 @@ public class DatabaseGeneralTest {
 
     @MediumTest
     @Test
-    public void testCustomFunction() {
-        mDatabase.addCustomFunction("roundFunction", 1, new SQLiteDatabase.CustomFunction() {
-            @Override
-            public String callback(String[] args) {
-                String input = args[0];
-                double value = Double.parseDouble(input);
-                return String.valueOf(Math.round(value));
-            }
-        });
-        Cursor cursor = mDatabase.rawQuery("SELECT roundFunction(3.14)", null);
-        assertTrue(cursor.moveToFirst());
-        int result = cursor.getInt(0);
-        assertSame(3, result);
-    }
-
-    @MediumTest
-    @Test
-    public void testNewFunction() {
-        mDatabase.addFunction("roundFunction2", 1, new SQLiteDatabase.Function() {
-            @Override
-            public void callback(Args args, Result result) {
-                double value = args.getDouble(0);
-                result.set(Math.round(value));
-            }
-        });
-        Cursor cursor = mDatabase.rawQuery("SELECT roundFunction2(3.14)", null);
-        assertTrue(cursor.moveToFirst());
-        int result = cursor.getInt(0);
-        assertSame(3, result);
-    }
-
-    @MediumTest
-    @Test
-    public void testCustomFunctionNoReturn() {
-        mDatabase.addCustomFunction("emptyFunction", 1, new SQLiteDatabase.CustomFunction() {
-            @Override
-            public String callback(String[] args) {
-                return null;
-            }
-        });
-        Cursor cursor = mDatabase.rawQuery("SELECT emptyFunction(3.14)", null);
-        // always empty regardless of if sqlite3_result_null is called or not
-        cursor.moveToFirst();
-        assertSame(null, cursor.getString(0));
-    }
-
-    @MediumTest
-    @Test
-    public void testNewFunctionNoReturn() {
-        mDatabase.addFunction("emptyFunction2", 1, new SQLiteDatabase.Function() {
-            @Override
-            public void callback(Args args, Result result) {
-            }
-        });
-        Cursor cursor = mDatabase.rawQuery("SELECT emptyFunction2(3.14)", null);
-        // always empty regardless of if sqlite3_result_null is called or not
-        cursor.moveToFirst();
-        assertSame(null, cursor.getString(0));
-    }
-
-    @MediumTest
-    @Test
     public void testVersion() {
         assertEquals(CURRENT_DATABASE_VERSION, mDatabase.getVersion());
         mDatabase.setVersion(11);
@@ -178,7 +113,7 @@ public class DatabaseGeneralTest {
         ContentValues values = new ContentValues(1);
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", values, "_id=1", null));
-        Cursor c = mDatabase.query("test", null, "_id=1", null, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(1, c.getCount());
         c.moveToFirst();
@@ -195,7 +130,7 @@ public class DatabaseGeneralTest {
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", SQLiteDatabase.CONFLICT_NONE, values,
                 "_id=?", new Object[] { 1 }));
-        Cursor c = mDatabase.query("test", null, "_id=1", null, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(1, c.getCount());
         c.moveToFirst();
@@ -209,108 +144,11 @@ public class DatabaseGeneralTest {
         populateDefaultTable();
 
         assertEquals(1, mDatabase.delete("test", "_id=?", new Object[] { 1 }));
-        Cursor c = mDatabase.query("test", null, "_id=1", null, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(0, c.getCount());
     }
 
-    @Suppress // PHONE_NUMBERS_EQUAL not supported
-    @MediumTest
-    @Test
-    public void testPhoneNumbersEqual() {
-        mDatabase.execSQL("CREATE TABLE phones (num TEXT);");
-        mDatabase.execSQL("INSERT INTO phones (num) VALUES ('911');");
-        mDatabase.execSQL("INSERT INTO phones (num) VALUES ('5555');");
-        mDatabase.execSQL("INSERT INTO phones (num) VALUES ('+" + PHONE_NUMBER + "');");
-
-        String number;
-        Cursor c;
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '504-555-7683')", null, null, null, null);
-        assertTrue(c == null || c.getCount() == 0);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '911')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("911", number);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '5555')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("5555", number);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '180055555555')", null, null, null, null);
-        assertTrue(c == null || c.getCount() == 0);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '+" + PHONE_NUMBER + "')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("+" + PHONE_NUMBER, number);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '+1 (617).555-1212')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("+" + PHONE_NUMBER, number);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '" + PHONE_NUMBER + "')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("+" + PHONE_NUMBER, number);
-        c.close();
-
-        /*
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '5551212')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("+" + PHONE_NUMBER, number);
-        c.close();
-        */
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '011" + PHONE_NUMBER + "')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("+" + PHONE_NUMBER, number);
-        c.close();
-
-        c = mDatabase.query("phones", null,
-                "PHONE_NUMBERS_EQUAL(num, '00" + PHONE_NUMBER + "')", null, null, null, null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        number = c.getString(c.getColumnIndexOrThrow("num"));
-        assertEquals("+" + PHONE_NUMBER, number);
-        c.close();
-    }
-    
     private void phoneNumberCompare(String phone1, String phone2, boolean equal, 
             boolean useStrictComparation) {
         String[] temporalPhoneNumbers = new String[2];
@@ -354,15 +192,12 @@ public class DatabaseGeneralTest {
         assertPhoneNumberNotEqual(phone1, phone2, false);
     }
     
-    private void assertPhoneNumberNotEqual(String phone1, String phone2, boolean useStrict)
-            throws Exception {
+    private void assertPhoneNumberNotEqual(String phone1, String phone2, boolean useStrict) {
         phoneNumberCompare(phone1, phone2, false, useStrict);
     }
 
     /**
      * Tests international matching issues for the PHONE_NUMBERS_EQUAL function.
-     * 
-     * @throws Exception
      */
     @Suppress // PHONE_NUMBERS_EQUAL not supported
     @SmallTest
@@ -424,12 +259,12 @@ public class DatabaseGeneralTest {
 
     @MediumTest
     @Test
-    public void testCopyString() throws Exception {
+    public void testCopyString() {
         mDatabase.execSQL("CREATE TABLE guess (numi INTEGER, numf FLOAT, str TEXT);");
         mDatabase.execSQL(
                 "INSERT INTO guess (numi,numf,str) VALUES (0,0.0,'ZoomZoomZoomZoom');");
         mDatabase.execSQL("INSERT INTO guess (numi,numf,str) VALUES (2000000000,3.1415926535,'');");
-        String chinese = "\u4eac\u4ec5 \u5c3d\u5f84\u60ca";
+        String chinese = "京仅 尽径惊";
         String[] arr = new String[1];
         arr[0] = chinese;
         mDatabase.execSQL("INSERT INTO guess (numi,numf,str) VALUES (-32768,-1.0,?)", arr);
@@ -464,7 +299,7 @@ public class DatabaseGeneralTest {
         
         c.moveToNext();
         c.copyStringToBuffer(numfIdx, buf);
-        assertEquals(new Double(-1.0), Double.valueOf(
+        assertEquals(Double.valueOf(-1.0), Double.valueOf(
             new String(buf.data, 0, buf.sizeCopied)));
         
         c.copyStringToBuffer(strIdx, buf);
@@ -477,13 +312,13 @@ public class DatabaseGeneralTest {
     
     @MediumTest
     @Test
-    public void testSchemaChange1() throws Exception {
+    public void testSchemaChange1() {
         SQLiteDatabase db1 = mDatabase;
         Cursor cursor;
 
         db1.execSQL("CREATE TABLE db1 (_id INTEGER PRIMARY KEY, data TEXT);");
 
-        cursor = db1.query("db1", null, null, null, null, null, null);
+        cursor = db1.query("SELECT * FROM db1");
         assertNotNull("Cursor is null", cursor);
 
         db1.execSQL("CREATE TABLE db2 (_id INTEGER PRIMARY KEY, data TEXT);");
@@ -496,7 +331,7 @@ public class DatabaseGeneralTest {
     @Test
     public void testSchemaChange2() {
         mDatabase.execSQL("CREATE TABLE db1 (_id INTEGER PRIMARY KEY, data TEXT);");
-        Cursor cursor = mDatabase.query("db1", null, null, null, null, null, null);
+        Cursor cursor = mDatabase.query("SELECT * FROM db1");
         assertNotNull(cursor);
         assertEquals(0, cursor.getCount());
         cursor.close();
@@ -508,15 +343,9 @@ public class DatabaseGeneralTest {
         mDatabase.execSQL("CREATE TABLE db1 (_id INTEGER PRIMARY KEY, data TEXT);");
         mDatabase.execSQL("INSERT INTO db1 (data) VALUES ('test');");
         mDatabase.execSQL("ALTER TABLE db1 ADD COLUMN blah int;");
-        Cursor c = null;
-        try {
-            c = mDatabase.rawQuery("select blah from db1", null);
+        try (Cursor ignored = mDatabase.rawQuery("select blah from db1", null)) {
         } catch (SQLiteException e) {
             fail("unexpected exception: " + e.getMessage());
-        } finally {
-            if (c != null) {
-                c.close();
-            }
         }
     }
 
@@ -530,8 +359,7 @@ public class DatabaseGeneralTest {
         values.clear();
         values.put("data", "no apostrophes here");
         mDatabase.insert("test", "data", values);
-        Cursor c = mDatabase.query(
-                "test", null, "data GLOB ?", new String[]{"*'*"}, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test WHERE data GLOB ?", new Object[]{"*'*"});
         assertEquals(1, c.getCount());
         assertTrue(c.moveToFirst());
         assertEquals("don't forget to handled 's", c.getString(1));
@@ -542,7 +370,6 @@ public class DatabaseGeneralTest {
     @MediumTest
     @Test
     public void testTokenize() {
-        Cursor c;
         mDatabase.execSQL("CREATE TABLE tokens (" +
                 "token TEXT COLLATE unicode," +
                 "source INTEGER," +
@@ -574,11 +401,11 @@ public class DatabaseGeneralTest {
                 "SELECT _TOKENIZE('tokens_no_index', 21, 'foo bar baz', ' ', 0)", null));
 
         // test Chinese
-        String chinese = "\u4eac\u4ec5 \u5c3d\u5f84\u60ca";
+        String chinese = "京仅 尽径惊";
         Assert.assertEquals(2, longForQuery(mDatabase,
                 "SELECT _TOKENIZE('tokens', 12,'" + chinese + "', ' ', 1)", null));
         
-        String icustr = "Fr\u00e9d\u00e9ric Hj\u00f8nnev\u00e5g";
+        String icustr = "Frédéric Hjønnevåg";
         
         Assert.assertEquals(2, longForQuery(mDatabase,
                 "SELECT _TOKENIZE('tokens', 13, '" + icustr + "', ' ', 1)", null));
@@ -679,7 +506,7 @@ public class DatabaseGeneralTest {
         Assert.assertEquals(0, longForQuery(mDatabase,
                 "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
         
-        key = DatabaseUtils.getHexCollationKey("\u4eac\u4ec5");
+        key = DatabaseUtils.getHexCollationKey("京仅");
         Assert.assertEquals(1, longForQuery(mDatabase,
                 "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
         Assert.assertEquals(12, longForQuery(mDatabase,
@@ -687,7 +514,7 @@ public class DatabaseGeneralTest {
         Assert.assertEquals(0, longForQuery(mDatabase,
                 "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
         
-        key = DatabaseUtils.getHexCollationKey("\u5c3d\u5f84\u60ca");
+        key = DatabaseUtils.getHexCollationKey("尽径惊");
         Log.d("DatabaseGeneralTest", "key = " + key);
         Assert.assertEquals(1, longForQuery(mDatabase,
                 "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
@@ -740,25 +567,17 @@ public class DatabaseGeneralTest {
         Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
         // We should get an error if we end a non-existent transaction.
-        assertThrowsIllegalState(new Runnable() { public void run() {
-            mDatabase.endTransaction();
-        }});
+        assertThrowsIllegalState(() -> mDatabase.endTransaction());
 
         // We should get an error if a set a non-existent transaction as clean.
-        assertThrowsIllegalState(new Runnable() { public void run() {
-            mDatabase.setTransactionSuccessful();
-        }});
+        assertThrowsIllegalState(() -> mDatabase.setTransactionSuccessful());
 
         mDatabase.beginTransaction();
         mDatabase.setTransactionSuccessful();
         // We should get an error if we mark a transaction as clean twice.
-        assertThrowsIllegalState(new Runnable() { public void run() {
-            mDatabase.setTransactionSuccessful();
-        }});
+        assertThrowsIllegalState(() -> mDatabase.setTransactionSuccessful());
         // We should get an error if we begin a transaction after marking the parent as clean.
-        assertThrowsIllegalState(new Runnable() { public void run() {
-            mDatabase.beginTransaction();
-        }});
+        assertThrowsIllegalState(() -> mDatabase.beginTransaction());
         mDatabase.endTransaction();
         Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
@@ -825,7 +644,7 @@ public class DatabaseGeneralTest {
         byte[] bytes = new byte[42];
         Arrays.fill(bytes, (byte) 0x28);
         values.put("byteArray", bytes);
-        assertTrue(Arrays.equals(bytes, values.getAsByteArray("byteArray")));
+        assertArrayEquals(bytes, values.getAsByteArray("byteArray"));
 
         // Write the ContentValues to a Parcel and then read them out
         Parcel p = Parcel.obtain();
@@ -834,7 +653,7 @@ public class DatabaseGeneralTest {
         values = ContentValues.CREATOR.createFromParcel(p);
 
         // Read the values out again and make sure they're the same
-        assertTrue(Arrays.equals(bytes, values.getAsByteArray("byteArray")));
+        assertArrayEquals(bytes, values.getAsByteArray("byteArray"));
         assertEquals("value", values.get("string"));
     }
 
@@ -863,7 +682,7 @@ public class DatabaseGeneralTest {
             Assert.assertTrue(cur.moveToNext());
             Assert.assertEquals("j",
                     cur.getString(TABLE_INFO_PRAGMA_COLUMNNAME_INDEX));
-            Assert.assertEquals(null, cur.getString(TABLE_INFO_PRAGMA_DEFAULT_INDEX));
+            Assert.assertNull(cur.getString(TABLE_INFO_PRAGMA_DEFAULT_INDEX));
 
             Assert.assertTrue(cur.moveToNext());
             Assert.assertEquals("s",
@@ -874,7 +693,7 @@ public class DatabaseGeneralTest {
             Assert.assertTrue(cur.moveToNext());
             Assert.assertEquals("t",
                     cur.getString(TABLE_INFO_PRAGMA_COLUMNNAME_INDEX));
-            Assert.assertEquals(null, cur.getString(TABLE_INFO_PRAGMA_DEFAULT_INDEX));
+            Assert.assertNull(cur.getString(TABLE_INFO_PRAGMA_DEFAULT_INDEX));
 
             Assert.assertTrue(cur.moveToNext());
             Assert.assertEquals("select",
@@ -958,9 +777,7 @@ public class DatabaseGeneralTest {
         for (Locale locale : localeArray) {
             if (locale != null) {
                 final String language = locale.getLanguage();
-                if (language == null) {
-                    continue;
-                } else if (language.equals(japanese)) {
+                if (language.equals(japanese)) {
                     japaneseLocale = locale;
                 } else if (language.equals(english)) {
                     englishLocale = locale;
@@ -975,12 +792,10 @@ public class DatabaseGeneralTest {
         if (japaneseLocale == null || englishLocale == null) {
             Log.d(TAG, testName + "n is silently skipped since " +
                     (englishLocale == null ?
-                            (japaneseLocale == null ?
+                            japaneseLocale == null ?
                                     "Both English and Japanese locales do not exist." :
-                                    "English locale does not exist.") :
-                            (japaneseLocale == null ?
-                                    "Japanese locale does not exist." :
-                                    "...why?")));
+                                    "English locale does not exist." :
+                            "Japanese locale does not exist."));
             return;
         }
 
@@ -993,18 +808,18 @@ public class DatabaseGeneralTest {
                     "s TEXT COLLATE LOCALIZED) ");
             //DatabaseUtils.InsertHelper ih =
             //    new DatabaseUtils.InsertHelper(mDatabase, dbName);
-            ContentValues cv = new ContentValues();
+            ContentValues cv;
 
             cv = new ContentValues();  //
-            cv.put("s", "\uFF75\uFF77\uFF85\uFF9C");  // O-ki-na-wa in half-width Katakana
+            cv.put("s", "ｵｷﾅﾜ");  // O-ki-na-wa in half-width Katakana
             //ih.insert(cv);
 
             cv = new ContentValues();  //
-            cv.put("s", "\u306B\u307B\u3093");  // Ni-ho-n in Hiragana
+            cv.put("s", "にほん");  // Ni-ho-n in Hiragana
             //ih.insert(cv);
 
             cv = new ContentValues();  //
-            cv.put("s", "\u30A2\u30E1\u30EA\u30AB");  // A-me-ri-ca in hull-width Katakana
+            cv.put("s", "アメリカ");  // A-me-ri-ca in hull-width Katakana
             //ih.insert(cv);
 
             // Assume setLocale() does REINDEX and an English locale does not consider
@@ -1015,17 +830,15 @@ public class DatabaseGeneralTest {
             Cursor cur = mDatabase.rawQuery(
                     "SELECT * FROM " + dbName + " ORDER BY s", null);
             assertTrue(cur.moveToFirst());
-            assertEquals("\u30A2\u30E1\u30EA\u30AB", cur.getString(1));
+            assertEquals("アメリカ", cur.getString(1));
             assertTrue(cur.moveToNext());
-            assertEquals("\uFF75\uFF77\uFF85\uFF9C", cur.getString(1));
+            assertEquals("ｵｷﾅﾜ", cur.getString(1));
             assertTrue(cur.moveToNext());
-            assertEquals("\u306B\u307B\u3093", cur.getString(1));
+            assertEquals("にほん", cur.getString(1));
         } finally {
-            if (originalLocale != null) {
-                try {
-                    Locale.setDefault(originalLocale);
-                } catch (Exception ignored) {
-                }
+            try {
+                Locale.setDefault(originalLocale);
+            } catch (Exception ignored) {
             }
         }
     }
@@ -1145,11 +958,8 @@ public class DatabaseGeneralTest {
      * first column of the first row.
      */
     public static long longForQuery(SQLiteDatabase db, String query, String[] selectionArgs) {
-        SQLiteStatement prog = db.compileStatement(query);
-        try {
+        try (SQLiteStatement prog = db.compileStatement(query)) {
             return longForQuery(prog, selectionArgs);
-        } finally {
-            prog.close();
         }
     }
 
@@ -1167,11 +977,8 @@ public class DatabaseGeneralTest {
      * first column of the first row.
      */
     public static String stringForQuery(SQLiteDatabase db, String query, String[] selectionArgs) {
-        SQLiteStatement prog = db.compileStatement(query);
-        try {
+        try (SQLiteStatement prog = db.compileStatement(query)) {
             return stringForQuery(prog, selectionArgs);
-        } finally {
-            prog.close();
         }
     }
 

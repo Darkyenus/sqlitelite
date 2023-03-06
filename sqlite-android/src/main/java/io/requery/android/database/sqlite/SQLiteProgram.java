@@ -17,8 +17,7 @@
 
 package io.requery.android.database.sqlite;
 
-import androidx.core.os.CancellationSignal;
-import androidx.sqlite.db.SupportSQLiteProgram;
+import android.os.CancellationSignal;
 
 import java.util.Arrays;
 
@@ -29,7 +28,7 @@ import java.util.Arrays;
  * </p>
  */
 @SuppressWarnings("unused")
-public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQLiteProgram {
+public abstract class SQLiteProgram extends SQLiteClosable {
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
     private final SQLiteDatabase mDatabase;
@@ -39,8 +38,7 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
     private final int mNumParameters;
     private final Object[] mBindArgs;
 
-    SQLiteProgram(SQLiteDatabase db, String sql, Object[] bindArgs,
-            CancellationSignal cancellationSignalForPrepare) {
+    SQLiteProgram(SQLiteDatabase db, String sql, Object[] bindArgs, CancellationSignal cancellationSignalForPrepare) {
         mDatabase = db;
         mSql = sql.trim();
 
@@ -119,7 +117,6 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
      *
      * @param index The 1-based index to the parameter to bind null to
      */
-    @Override
     public void bindNull(int index) {
         bind(index, null);
     }
@@ -131,7 +128,6 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
      * @param index The 1-based index to the parameter to bind
      * @param value The value to bind
      */
-    @Override
     public void bindLong(int index, long value) {
         bind(index, value);
     }
@@ -143,7 +139,6 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
      * @param index The 1-based index to the parameter to bind
      * @param value The value to bind
      */
-    @Override
     public void bindDouble(int index, double value) {
         bind(index, value);
     }
@@ -155,7 +150,6 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
      * @param index The 1-based index to the parameter to bind
      * @param value The value to bind, must not be null
      */
-    @Override
     public void bindString(int index, String value) {
         if (value == null) {
             throw new IllegalArgumentException("the bind value at index " + index + " is null");
@@ -170,7 +164,6 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
      * @param index The 1-based index to the parameter to bind
      * @param value The value to bind, must not be null
      */
-    @Override
     public void bindBlob(int index, byte[] value) {
         if (value == null) {
             throw new IllegalArgumentException("the bind value at index " + index + " is null");
@@ -210,7 +203,6 @@ public abstract class SQLiteProgram extends SQLiteClosable implements SupportSQL
     /**
      * Clears all existing bindings. Unset bindings are treated as NULL.
      */
-    @Override
     public void clearBindings() {
         if (mBindArgs != null) {
             Arrays.fill(mBindArgs, null);

@@ -20,7 +20,6 @@ package io.requery.android.database.sqlite;
 import android.content.Context;
 import android.database.sqlite.SQLiteException;
 import android.util.Log;
-import androidx.sqlite.db.SupportSQLiteOpenHelper;
 import io.requery.android.database.DatabaseErrorHandler;
 
 /**
@@ -42,7 +41,7 @@ import io.requery.android.database.DatabaseErrorHandler;
  * monotonically increasing version numbers for upgrades.</p>
  */
 @SuppressWarnings("unused")
-public abstract class SQLiteOpenHelper implements SupportSQLiteOpenHelper {
+public abstract class SQLiteOpenHelper {
     private static final String TAG = SQLiteOpenHelper.class.getSimpleName();
 
     // When true, getReadableDatabase returns a read-only database if it is just being opened.
@@ -117,7 +116,6 @@ public abstract class SQLiteOpenHelper implements SupportSQLiteOpenHelper {
      * Return the name of the SQLite database being opened, as given to
      * the constructor.
      */
-    @Override
     public String getDatabaseName() {
         return mName;
     }
@@ -133,7 +131,6 @@ public abstract class SQLiteOpenHelper implements SupportSQLiteOpenHelper {
      *
      * @see SQLiteDatabase#enableWriteAheadLogging()
      */
-    @Override
     public void setWriteAheadLoggingEnabled(boolean enabled) {
         synchronized (this) {
             if (mEnableWriteAheadLogging != enabled) {
@@ -168,7 +165,6 @@ public abstract class SQLiteOpenHelper implements SupportSQLiteOpenHelper {
      * @throws SQLiteException if the database cannot be opened for writing
      * @return a read/write database object valid until {@link #close} is called
      */
-    @Override
     public SQLiteDatabase getWritableDatabase() {
         synchronized (this) {
             return getDatabaseLocked(true);
@@ -193,7 +189,6 @@ public abstract class SQLiteOpenHelper implements SupportSQLiteOpenHelper {
      * @return a database object valid until {@link #getWritableDatabase}
      *     or {@link #close} is called.
      */
-    @Override
     public SQLiteDatabase getReadableDatabase() {
         synchronized (this) {
             return getDatabaseLocked(false);
@@ -299,7 +294,6 @@ public abstract class SQLiteOpenHelper implements SupportSQLiteOpenHelper {
     /**
      * Close any open database object.
      */
-    @Override
     public synchronized void close() {
         if (mIsInitializing) throw new IllegalStateException("Closed during initialization");
 

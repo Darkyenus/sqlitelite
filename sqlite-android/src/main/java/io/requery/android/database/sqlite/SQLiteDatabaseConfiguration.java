@@ -72,36 +72,11 @@ public final class SQLiteDatabaseConfiguration {
     public int maxSqlCacheSize;
 
     /**
-     * The database locale.
-     *
-     * Default is the value returned by {@link Locale#getDefault()}.
-     */
-    public Locale locale;
-
-    /**
      * True if foreign key constraints are enabled.
      *
      * Default is false.
      */
     public boolean foreignKeyConstraintsEnabled;
-
-    /**
-     * The custom functions to register.
-     *
-     * This interface is deprecated; see {@link SQLiteFunction}
-     */
-    @Deprecated
-    public final List<SQLiteCustomFunction> customFunctions = new ArrayList<>();
-
-    /**
-     * The {@link SQLiteFunction}s to register.
-     */
-    public final List<SQLiteFunction> functions = new ArrayList<>();
-
-    /**
-     * The custom extensions to register.
-     */
-    public final List<SQLiteCustomExtension> customExtensions = new ArrayList<>();
 
     /**
      * Creates a database configuration with the required parameters for opening a
@@ -121,27 +96,6 @@ public final class SQLiteDatabaseConfiguration {
 
         // Set default values for optional parameters.
         maxSqlCacheSize = 25;
-        locale = Locale.getDefault();
-    }
-
-    /**
-     * Creates a database configuration with the required parameters for opening a
-     * database and default values for all other parameters.
-     *
-     * @param path The database path.
-     * @param openFlags Open flags for the database, such as {@link SQLiteDatabase#OPEN_READWRITE}.
-     * @param functions custom functions to use.
-     * @param extensions custom extensions to use.
-     */
-    public SQLiteDatabaseConfiguration(String path,
-                                       @SQLiteDatabase.OpenFlags int openFlags,
-                                       List<SQLiteCustomFunction> customFunctions,
-                                       List<SQLiteFunction> functions,
-                                       List<SQLiteCustomExtension> extensions) {
-        this(path, openFlags);
-        this.customFunctions.addAll(customFunctions);
-        this.customExtensions.addAll(extensions);
-        this.functions.addAll(functions);
     }
 
     /**
@@ -176,14 +130,7 @@ public final class SQLiteDatabaseConfiguration {
 
         openFlags = other.openFlags;
         maxSqlCacheSize = other.maxSqlCacheSize;
-        locale = other.locale;
         foreignKeyConstraintsEnabled = other.foreignKeyConstraintsEnabled;
-        customFunctions.clear();
-        customFunctions.addAll(other.customFunctions);
-        customExtensions.clear();
-        customExtensions.addAll(other.customExtensions);
-        functions.clear();
-        functions.addAll(other.functions);
     }
 
     /**

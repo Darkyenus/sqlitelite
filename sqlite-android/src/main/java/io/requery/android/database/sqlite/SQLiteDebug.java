@@ -29,7 +29,6 @@ import java.util.ArrayList;
  */
 @SuppressWarnings("unused")
 public final class SQLiteDebug {
-    private static native void nativeGetPagerStats(PagerStats stats);
 
     /**
      * Controls the printing of informational SQL log messages.
@@ -39,22 +38,6 @@ public final class SQLiteDebug {
     public static final boolean DEBUG_SQL_LOG =
             Log.isLoggable("SQLiteLog", Log.VERBOSE);
 
-    /**
-     * Controls the printing of SQL statements as they are executed.
-     *
-     * Enable using "adb shell setprop log.tag.SQLiteStatements VERBOSE".
-     */
-    public static final boolean DEBUG_SQL_STATEMENTS =
-            Log.isLoggable("SQLiteStatements", Log.VERBOSE);
-
-    /**
-     * Controls the printing of wall-clock time taken to execute SQL statements
-     * as they are executed.
-     *
-     * Enable using "adb shell setprop log.tag.SQLiteTime VERBOSE".
-     */
-    public static final boolean DEBUG_SQL_TIME =
-            Log.isLoggable("SQLiteTime", Log.VERBOSE);
 
     /**
      * True to enable database performance testing instrumentation.
@@ -82,92 +65,5 @@ public final class SQLiteDebug {
         int slowQueryMillis = Integer.parseInt(
             System.getProperty("db.log.slow_query_threshold", "-1"));
         return slowQueryMillis >= 0 && elapsedTimeMillis >= slowQueryMillis;
-    }
-
-    /**
-     * Contains statistics about the active pagers in the current process.
-     *
-     * @see #nativeGetPagerStats(PagerStats)
-     */
-    public static class PagerStats {
-        /** the current amount of memory checked out by sqlite using sqlite3_malloc().
-         * documented at http://www.sqlite.org/c3ref/c_status_malloc_size.html
-         */
-        public int memoryUsed;
-
-        /** the number of bytes of page cache allocation which could not be sattisfied by the
-         * SQLITE_CONFIG_PAGECACHE buffer and where forced to overflow to sqlite3_malloc().
-         * The returned value includes allocations that overflowed because they where too large
-         * (they were larger than the "sz" parameter to SQLITE_CONFIG_PAGECACHE) and allocations
-         * that overflowed because no space was left in the page cache.
-         * documented at http://www.sqlite.org/c3ref/c_status_malloc_size.html
-         */
-        public int pageCacheOverflow;
-
-        /** records the largest memory allocation request handed to sqlite3.
-         * documented at http://www.sqlite.org/c3ref/c_status_malloc_size.html
-         */
-        public int largestMemAlloc;
-
-        /** a list of {@link DbStats} - one for each main database opened by the applications
-         * running on the android device
-         */
-        public ArrayList<DbStats> dbStats;
-    }
-
-    /**
-     * contains statistics about a database
-     */
-    public static class DbStats {
-        /** name of the database */
-        public String dbName;
-
-        /** the page size for the database */
-        public long pageSize;
-
-        /** the database size */
-        public long dbSize;
-
-        /** documented here http://www.sqlite.org/c3ref/c_dbstatus_lookaside_used.html */
-        public int lookaside;
-
-        /** statement cache stats: hits/misses/cachesize */
-        public String cache;
-
-        public DbStats(String dbName, long pageCount, long pageSize, int lookaside,
-            int hits, int misses, int cachesize) {
-            this.dbName = dbName;
-            this.pageSize = pageSize / 1024;
-            dbSize = (pageCount * pageSize) / 1024;
-            this.lookaside = lookaside;
-            this.cache = hits + "/" + misses + "/" + cachesize;
-        }
-    }
-
-    /**
-     * return all pager and database stats for the current process.
-     * @return {@link PagerStats}
-     */
-    public static PagerStats getDatabaseInfo() {
-        PagerStats stats = new PagerStats();
-        nativeGetPagerStats(stats);
-        stats.dbStats = SQLiteDatabase.getDbStats();
-        return stats;
-    }
-
-    /**
-     * Dumps detailed information about all databases used by the process.
-     * @param printer The printer for dumping database state.
-     * @param args Command-line arguments supplied to dumpsys dbinfo
-     */
-    public static void dump(Printer printer, String[] args) {
-        boolean verbose = false;
-        for (String arg : args) {
-            if (arg.equals("-v")) {
-                verbose = true;
-            }
-        }
-
-        SQLiteDatabase.dumpAll(printer, verbose);
     }
 }

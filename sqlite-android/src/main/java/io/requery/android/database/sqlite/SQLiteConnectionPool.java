@@ -23,11 +23,10 @@ package io.requery.android.database.sqlite;
 
 import android.annotation.SuppressLint;
 import android.database.sqlite.SQLiteException;
+import android.os.CancellationSignal;
+import android.os.OperationCanceledException;
 import android.os.SystemClock;
 import android.util.Log;
-import android.util.Printer;
-import androidx.core.os.CancellationSignal;
-import androidx.core.os.OperationCanceledException;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -436,27 +435,6 @@ public final class SQLiteConnectionPool implements Closeable {
 
             return isSessionBlockingImportantConnectionWaitersLocked(
                     connection.isPrimaryConnection(), connectionFlags);
-        }
-    }
-
-    /**
-     * Collects statistics about database connection memory usage.
-     *
-     * @param dbStatsList The list to populate.
-     */
-    public void collectDbStats(ArrayList<SQLiteDebug.DbStats> dbStatsList) {
-        synchronized (mLock) {
-            if (mAvailablePrimaryConnection != null) {
-                mAvailablePrimaryConnection.collectDbStats(dbStatsList);
-            }
-
-            for (SQLiteConnection connection : mAvailableNonPrimaryConnections) {
-                connection.collectDbStats(dbStatsList);
-            }
-
-            for (SQLiteConnection connection : mAcquiredConnections.keySet()) {
-                connection.collectDbStatsUnsafe(dbStatsList);
-            }
         }
     }
 
@@ -948,8 +926,7 @@ public final class SQLiteConnectionPool implements Closeable {
     }
 
     private void setMaxConnectionPoolSizeLocked() {
-        if (!SQLiteDatabase.hasCodec()
-            && (mConfiguration.openFlags & SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING) != 0) {
+        if ((mConfiguration.openFlags & SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING) != 0) {
             mMaxConnectionPoolSize = SQLiteGlobal.getWALConnectionPoolSize();
         } else {
             // TODO: We don't actually need to restrict the connection pool size to 1
@@ -993,75 +970,6 @@ public final class SQLiteConnectionPool implements Closeable {
         waiter.mException = null;
         waiter.mNonce += 1;
         mConnectionWaiterPool = waiter;
-    }
-
-    public void enableLocalizedCollators() {
-        synchronized (mLock) {
-            if (!mAcquiredConnections.isEmpty() || mAvailablePrimaryConnection == null) {
-                throw new IllegalStateException(
-                    "Cannot enable localized collators while database is in use"
-                );
-            }
-            mAvailablePrimaryConnection.enableLocalizedCollators();
-        }
-    }
-
-    /**
-     * Dumps debugging information about this connection pool.
-     *
-     * @param printer The printer to receive the dump, not null.
-     * @param verbose True to dump more verbose information.
-     */
-    public void dump(Printer printer, boolean verbose) {
-        synchronized (mLock) {
-            printer.println("Connection pool for " + mConfiguration.path + ":");
-            printer.println("  Open: " + mIsOpen);
-            printer.println("  Max connections: " + mMaxConnectionPoolSize);
-
-            printer.println("  Available primary connection:");
-            if (mAvailablePrimaryConnection != null) {
-                mAvailablePrimaryConnection.dump(printer, verbose);
-            } else {
-                printer.println("<none>");
-            }
-
-            printer.println("  Available non-primary connections:");
-            if (!mAvailableNonPrimaryConnections.isEmpty()) {
-                for (SQLiteConnection connection : mAvailableNonPrimaryConnections) {
-                    connection.dump(printer, verbose);
-                }
-            } else {
-                printer.println("<none>");
-            }
-
-            printer.println("  Acquired connections:");
-            if (!mAcquiredConnections.isEmpty()) {
-                for (Map.Entry<SQLiteConnection, AcquiredConnectionStatus> entry :
-                        mAcquiredConnections.entrySet()) {
-                    final SQLiteConnection connection = entry.getKey();
-                    connection.dumpUnsafe(printer, verbose);
-                    printer.println("  Status: " + entry.getValue());
-                }
-            } else {
-                printer.println("<none>");
-            }
-
-            printer.println("  Connection waiters:");
-            if (mConnectionWaiterQueue != null) {
-                int i = 0;
-                final long now = SystemClock.uptimeMillis();
-                for (ConnectionWaiter waiter = mConnectionWaiterQueue; waiter != null;
-                        waiter = waiter.mNext, i++) {
-                    printer.println(i + ": waited for "
-                            + ((now - waiter.mStartTime) * 0.001f)
-                            + " ms - thread=" + waiter.mThread
-                            + ", priority=" + waiter.mPriority
-                            + ", sql='" + waiter.mSql + "'");
-                }
-            } else {
-                printer.println("<none>");
-            }
-        }
     }
 
     @Override

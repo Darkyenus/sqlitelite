@@ -34,7 +34,7 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 @RunWith(AndroidJUnit4.class)
-public class Benchmark {
+public class BenchmarkTest {
 
     private static final String TAG = "SQLite";
     private static final int COUNT = 10000;
@@ -142,11 +142,8 @@ public class Benchmark {
         Trace trace = new Trace("requery Read");
         Cursor cursor = null;
         try {
-            io.requery.android.database.sqlite.SQLiteDatabase db =
-                requerySQLite.getWritableDatabase();
-            String[] projection = new String[] {
-                Record.COLUMN_ID, Record.COLUMN_CONTENT, Record.COLUMN_CREATED_TIME, };
-            cursor = db.query(Record.TABLE_NAME, projection, null, null, null, null, null);
+            io.requery.android.database.sqlite.SQLiteDatabase db = requerySQLite.getWritableDatabase();
+            cursor = db.query("SELECT "+Record.COLUMN_ID+", "+Record.COLUMN_CONTENT+", "+Record.COLUMN_CREATED_TIME +" FROM "+Record.TABLE_NAME);
             readCursor(cursor);
         } finally {
             if (cursor != null) {

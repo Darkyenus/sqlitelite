@@ -7,12 +7,12 @@ plugins {
 }
 
 android {
-    compileSdkVersion 33
-    buildToolsVersion "33.0.1"
+    compileSdk 33
+    buildToolsVersion = "33.0.1"
     ndkVersion '25.1.8937393'
 
     defaultConfig {
-        minSdkVersion 14
+        minSdkVersion 16
         versionName VERSION_NAME
         namespace "io.requery.android.sqlite"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
@@ -40,27 +40,32 @@ android {
             path 'src/main/jni/Android.mk'
         }
     }
+    testOptions {
+        execution 'ANDROIDX_TEST_ORCHESTRATOR'
+    }
 }
 
 dependencies {
-    api 'androidx.sqlite:sqlite:2.2.0'
-    api 'androidx.core:core:1.9.0'
+    compileOnly 'androidx.annotation:annotation:1.6.0'
+
     androidTestImplementation 'androidx.test:core:1.5.0'
-    androidTestImplementation 'androidx.test:runner:1.5.1'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
     androidTestImplementation 'androidx.test:rules:1.5.0'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.4'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestUtil 'androidx.test:orchestrator:1.4.2'
 }
 
 ext {
     sqliteDistributionUrl = 'https://www.sqlite.org/2022/sqlite-amalgamation-3400100.zip'
 }
 
-task downloadSqlite(type: Download) {
+tasks.register('downloadSqlite', Download) {
     src project.sqliteDistributionUrl
     dest 'src/main/jni/sqlite.zip'
 }
 
-task installSqlite(dependsOn: downloadSqlite, type: Copy) {
+tasks.register('installSqlite', Copy) {
+    dependsOn downloadSqlite
     from zipTree(downloadSqlite.dest).matching {
         include '*/sqlite3.*'
         eachFile { it.setPath(it.getName()) }
@@ -70,10 +75,10 @@ task installSqlite(dependsOn: downloadSqlite, type: Copy) {
 
 preBuild.dependsOn installSqlite
 
-task javadoc(type: Javadoc) {
+tasks.register('javadoc', Javadoc) {
     source = android.sourceSets.main.java.srcDirs
     classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
-    android.libraryVariants.all { variant ->
+    android.libraryVariants.configureEach { variant ->
         if (variant.name == 'release') {
             owner.classpath += variant.javaCompileProvider.get().classpath
         }
@@ -87,7 +92,7 @@ task javadoc(type: Javadoc) {
 }
 
 // https://issuetracker.google.com/issues/207403732
-tasks.whenTaskAdded { task ->
+tasks.configureEach { task ->
     if (task.name.startsWith("configureNdkBuildDebug")
             || task.name.startsWith("configureNdkBuildRelease")) {
         task.dependsOn preBuild

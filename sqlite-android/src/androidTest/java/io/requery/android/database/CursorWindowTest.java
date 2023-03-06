@@ -25,8 +25,8 @@ import java.util.Arrays;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
@@ -106,7 +106,7 @@ public class CursorWindowTest {
         byte value = 99;
         Arrays.fill(blob, value);
         assertTrue(window.putBlob(blob, 0, 6));
-        assertTrue(Arrays.equals(blob, window.getBlob(0, 6)));
+        assertArrayEquals(blob, window.getBlob(0, 6));
     }
 
 

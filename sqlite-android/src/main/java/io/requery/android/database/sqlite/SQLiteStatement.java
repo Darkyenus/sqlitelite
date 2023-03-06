@@ -21,7 +21,6 @@ import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteDoneException;
 import android.os.ParcelFileDescriptor;
-import androidx.sqlite.db.SupportSQLiteStatement;
 
 /**
  * Represents a statement that can be executed against a database.  The statement
@@ -32,7 +31,7 @@ import androidx.sqlite.db.SupportSQLiteStatement;
  * </p>
  */
 @SuppressWarnings("unused")
-public final class SQLiteStatement extends SQLiteProgram implements SupportSQLiteStatement {
+public final class SQLiteStatement extends SQLiteProgram {
 
     SQLiteStatement(SQLiteDatabase db, String sql, Object[] bindArgs) {
         super(db, sql, bindArgs, null);
@@ -44,7 +43,6 @@ public final class SQLiteStatement extends SQLiteProgram implements SupportSQLit
      *
      * @throws SQLException If the SQL string is invalid for some reason
      */
-    @Override
     public void execute() {
         acquireReference();
         try {
@@ -64,7 +62,6 @@ public final class SQLiteStatement extends SQLiteProgram implements SupportSQLit
      * @return the number of rows affected by this SQL statement execution.
      * @throws SQLException If the SQL string is invalid for some reason
      */
-    @Override
     public int executeUpdateDelete() {
         acquireReference();
         try {
@@ -86,7 +83,6 @@ public final class SQLiteStatement extends SQLiteProgram implements SupportSQLit
      *
      * @throws SQLException If the SQL string is invalid for some reason
      */
-    @Override
     public long executeInsert() {
         acquireReference();
         try {
@@ -108,7 +104,6 @@ public final class SQLiteStatement extends SQLiteProgram implements SupportSQLit
      *
      * @throws SQLiteDoneException if the query returns zero rows
      */
-    @Override
     public long simpleQueryForLong() {
         acquireReference();
         try {
@@ -130,7 +125,6 @@ public final class SQLiteStatement extends SQLiteProgram implements SupportSQLit
      *
      * @throws SQLiteDoneException if the query returns zero rows
      */
-    @Override
     public String simpleQueryForString() {
         acquireReference();
         try {

@@ -17,8 +17,6 @@
 
 package io.requery.android.database.sqlite;
 
-import java.util.Locale;
-
 class SQLiteStatementType {
 
     /** One of the values returned by {@link #getSqlStatementType(String)}. */

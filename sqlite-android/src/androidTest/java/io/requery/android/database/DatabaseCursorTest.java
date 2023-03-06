@@ -118,7 +118,7 @@ public class DatabaseCursorTest {
         String sql = "INSERT INTO test (s, d, l, b) VALUES (?,?,?,?)";
         mDatabase.execSQL(sql, args);
         // use cursor to access blob
-        Cursor c = mDatabase.query("test", null, null, null, null, null, null);        
+        Cursor c = mDatabase.query("SELECT * FROM test");
         c.moveToNext();
         ContentValues cv = new ContentValues();
         //DatabaseUtils.cursorRowToContentValues(c, cv);
@@ -164,7 +164,7 @@ public class DatabaseCursorTest {
     public void testCursor1() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.query("test", null, null, null, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test");
 
         int dataColumn = c.getColumnIndexOrThrow("data");
 
@@ -229,7 +229,7 @@ public class DatabaseCursorTest {
     public void testCursor2() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.query("test", null, "_id > 1000", null, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id > 1000");
         assertEquals(0, c.getCount());
         assertTrue(c.isBeforeFirst());
 
@@ -270,7 +270,7 @@ public class DatabaseCursorTest {
         sql.append("');");
         mDatabase.execSQL(sql.toString());
 
-        Cursor c = mDatabase.query("test", null, null, null, null, null, null);
+        Cursor c = mDatabase.query("SELECT * FROM test");
         assertNotNull(c);
         assertEquals(1, c.getCount());
 
@@ -294,7 +294,7 @@ public class DatabaseCursorTest {
         }
         mDatabase.execSQL("COMMIT;");
 
-        Cursor c = mDatabase.query("test", new String[]{"data"}, null, null, null, null, null);
+        Cursor c = mDatabase.query("SELECT data FROM test");
         assertNotNull(c);
 
         int i = 0;
@@ -331,7 +331,7 @@ public class DatabaseCursorTest {
         }
         mDatabase.execSQL("COMMIT;");
 
-        Cursor c = mDatabase.query("test", new String[]{"data"}, null, null, null, null, null);
+        Cursor c = mDatabase.query("SELECT data FROM test");
         assertNotNull(c);
 
         int i = 0;
@@ -369,7 +369,7 @@ public class DatabaseCursorTest {
         }
         mDatabase.execSQL("COMMIT;");
 
-        Cursor c = mDatabase.query("test", new String[]{"txt", "data"}, null, null, null, null, null);
+        Cursor c = mDatabase.query("SELECT txt, data FROM test");
         assertNotNull(c);
 
         int i = 0;

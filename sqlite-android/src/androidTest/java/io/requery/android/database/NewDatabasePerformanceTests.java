@@ -172,7 +172,6 @@ public class NewDatabasePerformanceTests {
 
     public static class Select100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"count(*)", "avg(b)"};
 
         private String[] where = new String[SIZE];
 
@@ -201,7 +200,7 @@ public class NewDatabasePerformanceTests {
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
                 mDatabase
-                .query("t1", COLUMNS, where[i], null, null, null, null);
+                .query("SELECT count(*), avg(b) FROM t1 WHERE " + where[i]);
             }
         }
     }
@@ -212,7 +211,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectStringComparison100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"count(*)", "avg(b)"};
 
         private String[] where = new String[SIZE];
 
@@ -239,7 +237,7 @@ public class NewDatabasePerformanceTests {
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
                 mDatabase
-                .query("t1", COLUMNS, where[i], null, null, null, null);
+                .query("SELECT count(*), avg(b) FROM t1 WHERE " + where[i]);
             }
         }
     }
@@ -250,7 +248,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectIndex100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"count(*)", "avg(b)"};
 
         private String[] where = new String[SIZE];
 
@@ -280,7 +277,7 @@ public class NewDatabasePerformanceTests {
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
                 mDatabase
-                .query("t1", COLUMNS, where[i], null, null, null, null);
+                .query("SELECT count(*), avg(b) FROM t1 WHERE "+ where[i]);
             }
         }
     }
@@ -291,7 +288,6 @@ public class NewDatabasePerformanceTests {
 
     public static class InnerJoin100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"t1.a"};
 
         @Before
         public void setUp() {
@@ -318,8 +314,7 @@ public class NewDatabasePerformanceTests {
 
         @Test
         public void testRun() {
-            mDatabase.query("t1 INNER JOIN t2 ON t1.b = t2.b", COLUMNS, null,
-                    null, null, null, null);
+            mDatabase.query("SELECT t1.a FROM t1 INNER JOIN t2 ON t1.b = t2.b");
         }
     }
 
@@ -329,7 +324,6 @@ public class NewDatabasePerformanceTests {
 
     public static class InnerJoinOneSide100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"t1.a"};
 
         @Before
         public void setUp() {
@@ -358,8 +352,7 @@ public class NewDatabasePerformanceTests {
 
         @Test
         public void testRun() {
-            mDatabase.query("t1 INNER JOIN t2 ON t1.b = t2.b", COLUMNS, null,
-                    null, null, null, null);
+            mDatabase.query("SELECT t1.a FROM t1 INNER JOIN t2 ON t1.b = t2.b");
         }
     }
 
@@ -369,7 +362,6 @@ public class NewDatabasePerformanceTests {
 
     public static class InnerJoinNoIndex100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"t1.a"};
 
         @Before
         public void setUp() {
@@ -398,8 +390,7 @@ public class NewDatabasePerformanceTests {
 
         @Test
         public void testRun() {
-            mDatabase.query("t1 INNER JOIN t2 ON t1.c = t2.c", COLUMNS, null,
-                    null, null, null, null);
+            mDatabase.query("SELECT t1.a FROM t1 INNER JOIN t2 ON t1.c = t2.c");
         }
     }
 
@@ -409,7 +400,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectSubQIndex100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"t1.a"};
 
         private String[] where = new String[SIZE];
 
@@ -450,7 +440,7 @@ public class NewDatabasePerformanceTests {
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
                 mDatabase
-                .query("t1", COLUMNS, where[i], null, null, null, null);
+                .query("SELECT t1.a FROM t1 WHERE "+ where[i]);
             }
         }
     }
@@ -461,7 +451,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectIndexStringComparison100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"count(*)", "avg(b)"};
 
         private String[] where = new String[SIZE];
 
@@ -488,8 +477,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase
-                .query("t1", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT count(*), avg(b) FROM t1 WHERE "+where[i]);
             }
         }
     }
@@ -500,7 +488,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectInteger100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"b"};
 
         @Before
         public void setUp() {
@@ -521,7 +508,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t1", COLUMNS, null, null, null, null, null);
+                mDatabase.query("SELECT b FROM t1");
             }
         }
     }
@@ -529,18 +516,15 @@ public class NewDatabasePerformanceTests {
     /**
      *  100 SELECTs on String
      */
-
     public static class SelectString100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"c"};
 
         @Before
         public void setUp() {
             super.setUp();
             Random random = new Random(42);
 
-            mDatabase
-            .execSQL("CREATE TABLE t1(a INTEGER, b INTEGER, c VARCHAR(100))");
+            mDatabase.execSQL("CREATE TABLE t1(a INTEGER, b INTEGER, c VARCHAR(100))");
 
             for (int i = 0; i < SIZE; i++) {
                 int r = random.nextInt(100000);
@@ -553,7 +537,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t1", COLUMNS, null, null, null, null, null);
+                mDatabase.query("SELECT c FROM t1");
             }
         }
     }
@@ -564,7 +548,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectIntegerIndex100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"b"};
 
         @Before
         public void setUp() {
@@ -586,7 +569,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t1", COLUMNS, null, null, null, null, null);
+                mDatabase.query("SELECT b FROM t1");
             }
         }
     }
@@ -597,7 +580,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectIndexString100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"c"};
 
         @Before
         public void setUp() {
@@ -619,7 +601,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t1", COLUMNS, null, null, null, null, null);
+                mDatabase.query("SELECT c FROM t1");
             }
         }
     }
@@ -630,7 +612,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectStringStartsWith100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private static final String[] COLUMNS = {"c"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -660,7 +641,7 @@ public class NewDatabasePerformanceTests {
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
                 mDatabase
-                .query("t1", COLUMNS, where[i], null, null, null, null);
+                .query("SELECT c FROM t1 WHERE " + where[i]);
             }
         }
     }
@@ -1026,7 +1007,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectStringStartsWith10000 extends PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private static final String[] COLUMNS = {"t3.a"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -1053,7 +1033,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t3", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT t3.a FROM t3 WHERE "+ where[i]);
             }
         }
     }
@@ -1065,7 +1045,6 @@ public class NewDatabasePerformanceTests {
     public static class SelectStringIndexedStartsWith10000 extends
     PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private static final String[] COLUMNS = {"t3.a"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -1093,7 +1072,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t3", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT t3.a FROM t3 WHERE "+ where[i]);
             }
         }
     }
@@ -1104,7 +1083,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectInteger10000 extends PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private static final String[] COLUMNS = {"t4.a"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -1127,7 +1105,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t4", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT t4.a FROM t4 WHERE "+ where[i]);
             }
         }
     }
@@ -1138,7 +1116,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectIntegerIndexed10000 extends PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private static final String[] COLUMNS = {"t4.a"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -1164,7 +1141,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t4", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT t4.a FROM t4 WHERE "+ where[i]);
             }
         }
     }
@@ -1176,7 +1153,6 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectStringContains10000 extends PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private static final String[] COLUMNS = {"t3.a"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -1202,7 +1178,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t3", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT t3.a FROM t3 WHERE "+ where[i]);
             }
         }
     }
@@ -1214,7 +1190,6 @@ public class NewDatabasePerformanceTests {
     public static class SelectStringIndexedContains10000 extends
     PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private static final String[] COLUMNS = {"t3.a"};
         private String[] where = new String[SIZE];
 
         @Before
@@ -1241,7 +1216,7 @@ public class NewDatabasePerformanceTests {
         @Test
         public void testRun() {
             for (int i = 0; i < SIZE; i++) {
-                mDatabase.query("t3", COLUMNS, where[i], null, null, null, null);
+                mDatabase.query("SELECT t3.a FROM t3 WHERE "+ where[i]);
             }
         }
     }
