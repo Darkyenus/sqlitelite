@@ -58,7 +58,7 @@ public class DatabaseLocaleTest {
     public void setUp() {
         mDatabase = SQLiteDatabase.create(null);
         mDatabase.execSQL(
-                "CREATE TABLE test (id INTEGER PRIMARY KEY, data TEXT COLLATE LOCALIZED);");
+                "CREATE TABLE test (id INTEGER PRIMARY KEY, data TEXT);");
     }
 
     private void insertStrings() {

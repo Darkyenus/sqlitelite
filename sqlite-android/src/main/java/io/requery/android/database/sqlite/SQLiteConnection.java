@@ -22,7 +22,6 @@
 package io.requery.android.database.sqlite;
 
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteBindOrColumnIndexOutOfRangeException;
 import android.database.sqlite.SQLiteDatabaseLockedException;
@@ -40,7 +39,6 @@ import io.requery.android.database.CursorWindow;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -91,7 +89,6 @@ import java.util.regex.Pattern;
  *
  * @hide
  */
-@SuppressWarnings("TryFinallyCanBeTryWithResources")
 public final class SQLiteConnection implements CancellationSignal.OnCancelListener {
     private static final String TAG = "SQLiteConnection";
     private static final boolean DEBUG = false;
@@ -212,115 +209,17 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
 
     private void open() {
         mConnectionPtr = nativeOpen(mConfiguration.path,
-                // remove the wal flag as its a custom flag not supported by sqlite3_open_v2
-                mConfiguration.openFlags & ~SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING,
+                mConfiguration.openFlags,
                 mConfiguration.label);
 
-        setPageSize();
         setForeignKeyModeFromConfiguration();
-        setJournalSizeLimit();
-        setAutoCheckpointInterval();
-        setWalModeFromConfiguration();
-    }
 
-    private void dispose(boolean finalized) {
-        if (mCloseGuard != null) {
-            if (finalized) {
-                mCloseGuard.warnIfOpen();
-            }
-            mCloseGuard.close();
-        }
-
-        if (mConnectionPtr != 0) {
-            final int cookie = mRecentOperations.beginOperation("close", null, null);
+        // Enable WAL
+        if (!mConfiguration.isInMemoryDb() && !mIsReadOnlyConnection) {
+            String actualValue = "?";
             try {
-                mPreparedStatementCache.evictAll();
-                nativeClose(mConnectionPtr);
-                mConnectionPtr = 0;
-            } finally {
-                mRecentOperations.endOperation(cookie);
-            }
-        }
-    }
-
-    private void setPageSize() {
-        if (!mConfiguration.isInMemoryDb() && !mIsReadOnlyConnection) {
-            final long newValue = SQLiteGlobal.getDefaultPageSize();
-            long value = executeForLong("PRAGMA page_size", null, null);
-            if (value != newValue) {
-                execute("PRAGMA page_size=" + newValue, null, null);
-            }
-        }
-    }
-
-    private void setAutoCheckpointInterval() {
-        if (!mConfiguration.isInMemoryDb() && !mIsReadOnlyConnection) {
-            final long newValue = SQLiteGlobal.getWALAutoCheckpoint();
-            long value = executeForLong("PRAGMA wal_autocheckpoint", null, null);
-            if (value != newValue) {
-                executeForLong("PRAGMA wal_autocheckpoint=" + newValue, null, null);
-            }
-        }
-    }
-
-    private void setJournalSizeLimit() {
-        if (!mConfiguration.isInMemoryDb() && !mIsReadOnlyConnection) {
-            final long newValue = SQLiteGlobal.getJournalSizeLimit();
-            long value = executeForLong("PRAGMA journal_size_limit", null, null);
-            if (value != newValue) {
-                executeForLong("PRAGMA journal_size_limit=" + newValue, null, null);
-            }
-        }
-    }
-
-    private void setForeignKeyModeFromConfiguration() {
-        if (!mIsReadOnlyConnection) {
-            final long newValue = mConfiguration.foreignKeyConstraintsEnabled ? 1 : 0;
-            long value = executeForLong("PRAGMA foreign_keys", null, null);
-            if (value != newValue) {
-                execute("PRAGMA foreign_keys=" + newValue, null, null);
-            }
-        }
-    }
-
-    private void setWalModeFromConfiguration() {
-        if (!mConfiguration.isInMemoryDb() && !mIsReadOnlyConnection) {
-            if ((mConfiguration.openFlags & SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING) != 0) {
-                setJournalMode("WAL");
-                setSyncMode(SQLiteGlobal.getWALSyncMode());
-            } else {
-                setJournalMode(SQLiteGlobal.getDefaultJournalMode());
-                setSyncMode(SQLiteGlobal.getDefaultSyncMode());
-            }
-        }
-    }
-
-    private void setSyncMode(String newValue) {
-        String value = executeForString("PRAGMA synchronous", null, null);
-        if (!canonicalizeSyncMode(value).equalsIgnoreCase(
-                canonicalizeSyncMode(newValue))) {
-            execute("PRAGMA synchronous=" + newValue, null, null);
-        }
-    }
-
-    private static String canonicalizeSyncMode(String value) {
-        switch (value) {
-            case "0":
-                return "OFF";
-            case "1":
-                return "NORMAL";
-            case "2":
-                return "FULL";
-        }
-        return value;
-    }
-
-    private void setJournalMode(String newValue) {
-        String value = executeForString("PRAGMA journal_mode", null, null);
-        if (!value.equalsIgnoreCase(newValue)) {
-            try {
-                String result = executeForString("PRAGMA journal_mode=" + newValue, null, null);
-                if (result.equalsIgnoreCase(newValue)) {
+                actualValue = executeForString("PRAGMA journal_mode=" + "WAL", null, null);
+                if (actualValue.equalsIgnoreCase("WAL")) {
                     return;
                 }
                 // PRAGMA journal_mode silently fails and returns the original journal
@@ -346,11 +245,41 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             // In the worst case, an application that enables WAL might not actually
             // get it, although it can still use connection pooling.
             Log.w(TAG, "Could not change the database journal mode of '"
-                    + mConfiguration.label + "' from '" + value + "' to '" + newValue
+                    + mConfiguration.label + "' from '" + actualValue + "' to '" + "WAL"
                     + "' because the database is locked.  This usually means that "
                     + "there are other open connections to the database which prevents "
                     + "the database from enabling or disabling write-ahead logging mode.  "
                     + "Proceeding without changing the journal mode.");
+        }
+    }
+
+    private void dispose(boolean finalized) {
+        if (mCloseGuard != null) {
+            if (finalized) {
+                mCloseGuard.warnIfOpen();
+            }
+            mCloseGuard.close();
+        }
+
+        if (mConnectionPtr != 0) {
+            final int cookie = mRecentOperations.beginOperation("close", null, null);
+            try {
+                mPreparedStatementCache.evictAll();
+                nativeClose(mConnectionPtr);
+                mConnectionPtr = 0;
+            } finally {
+                mRecentOperations.endOperation(cookie);
+            }
+        }
+    }
+
+    private void setForeignKeyModeFromConfiguration() {
+        if (!mIsReadOnlyConnection) {
+            final long newValue = mConfiguration.foreignKeyConstraintsEnabled ? 1 : 0;
+            long value = executeForLong("PRAGMA foreign_keys", null, null);
+            if (value != newValue) {
+                execute("PRAGMA foreign_keys=" + newValue, null, null);
+            }
         }
     }
 
@@ -361,8 +290,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         // Remember what changed.
         boolean foreignKeyModeChanged = configuration.foreignKeyConstraintsEnabled
                 != mConfiguration.foreignKeyConstraintsEnabled;
-        boolean walModeChanged = ((configuration.openFlags ^ mConfiguration.openFlags)
-                & SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING) != 0;
 
         // Update configuration parameters.
         mConfiguration.updateParametersFrom(configuration);
@@ -373,11 +300,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         // Update foreign key mode.
         if (foreignKeyModeChanged) {
             setForeignKeyModeFromConfiguration();
-        }
-
-        // Update WAL.
-        if (walModeChanged) {
-            setWalModeFromConfiguration();
         }
     }
 

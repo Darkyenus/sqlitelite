@@ -73,31 +73,6 @@ struct SQLiteConnection {
     }
 };
 
-/*
-** This function is a collation sequence callback equivalent to the built-in
-** BINARY sequence. 
-**
-** Stock Android uses a modified version of sqlite3.c that calls out to a module
-** named "sqlite3_android" to add extra built-in collations and functions to
-** all database handles. Specifically, collation sequence "LOCALIZED". For now,
-** this module does not include sqlite3_android (since it is difficult to build
-** with the NDK only). Instead, this function is registered as "LOCALIZED" for all
-** new database handles. 
-*/
-static int coll_localized(
-  void *not_used,
-  int nKey1, const void *pKey1,
-  int nKey2, const void *pKey2
-){
-  int rc, n;
-  n = nKey1<nKey2 ? nKey1 : nKey2;
-  rc = memcmp(pKey1, pKey2, n);
-  if( rc==0 ){
-    rc = nKey1 - nKey2;
-  }
-  return rc;
-}
-
 static jlong nativeOpen(JNIEnv* env, jclass clazz, jstring pathStr, jint openFlags,
         jstring labelStr) {
 
@@ -110,14 +85,6 @@ static jlong nativeOpen(JNIEnv* env, jclass clazz, jstring pathStr, jint openFla
         env->ReleaseStringUTFChars(pathStr, pathChars);
         env->ReleaseStringUTFChars(labelStr, labelChars);
         throw_sqlite3_exception_errcode(env, err, "Could not open database");
-        return 0;
-    }
-    err = sqlite3_create_collation(db, "localized", SQLITE_UTF8, 0, coll_localized);
-    if (err != SQLITE_OK) {
-        env->ReleaseStringUTFChars(pathStr, pathChars);
-        env->ReleaseStringUTFChars(labelStr, labelChars);
-        throw_sqlite3_exception_errcode(env, err, "Could not register collation");
-        sqlite3_close(db);
         return 0;
     }
 

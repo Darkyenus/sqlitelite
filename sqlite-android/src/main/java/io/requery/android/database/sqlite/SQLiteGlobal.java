@@ -21,8 +21,6 @@
 
 package io.requery.android.database.sqlite;
 
-import android.os.StatFs;
-
 /**
  * Provides access to SQLite functions that affect all database connection,
  * such as memory management.
@@ -38,8 +36,6 @@ import android.os.StatFs;
  * @hide
  */
 public final class SQLiteGlobal {
-    private static final Object sLock = new Object();
-    private static int sDefaultPageSize;
 
     private static native int nativeReleaseMemory();
 
@@ -54,63 +50,5 @@ public final class SQLiteGlobal {
      */
     public static int releaseMemory() {
         return nativeReleaseMemory();
-    }
-
-    // values derived from:
-    // https://android.googlesource.com/platform/frameworks/base.git/+/master/core/res/res/values/config.xml
-
-    /**
-     * Gets the default page size to use when creating a database.
-     */
-    @SuppressWarnings("deprecation")
-    public static int getDefaultPageSize() {
-        synchronized (sLock) {
-            if (sDefaultPageSize == 0) {
-                sDefaultPageSize = new StatFs("/data").getBlockSize();
-            }
-            return 1024;
-        }
-    }
-
-    /**
-     * Gets the default journal mode when WAL is not in use.
-     */
-    public static String getDefaultJournalMode() {
-        return "TRUNCATE";
-    }
-
-    /**
-     * Gets the journal size limit in bytes.
-     */
-    public static int getJournalSizeLimit() {
-        return 524288;
-    }
-
-    /**
-     * Gets the default database synchronization mode when WAL is not in use.
-     */
-    public static String getDefaultSyncMode() {
-        return "FULL";
-    }
-
-    /**
-     * Gets the database synchronization mode when in WAL mode.
-     */
-    public static String getWALSyncMode() {
-        return "normal";
-    }
-
-    /**
-     * Gets the WAL auto-checkpoint integer in database pages.
-     */
-    public static int getWALAutoCheckpoint() {
-        return 1000;
-    }
-
-    /**
-     * Gets the connection pool size when in WAL mode.
-     */
-    public static int getWALConnectionPoolSize() {
-        return 10;
     }
 }

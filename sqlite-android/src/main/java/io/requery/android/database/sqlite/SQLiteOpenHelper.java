@@ -59,7 +59,6 @@ public abstract class SQLiteOpenHelper {
 
     private SQLiteDatabase mDatabase;
     private boolean mIsInitializing;
-    private boolean mEnableWriteAheadLogging;
     private final DatabaseErrorHandler mErrorHandler;
 
     /**
@@ -118,32 +117,6 @@ public abstract class SQLiteOpenHelper {
      */
     public String getDatabaseName() {
         return mName;
-    }
-
-    /**
-     * Enables or disables the use of write-ahead logging for the database.
-     *
-     * Write-ahead logging cannot be used with read-only databases so the value of
-     * this flag is ignored if the database is opened read-only.
-     *
-     * @param enabled True if write-ahead logging should be enabled, false if it
-     * should be disabled.
-     *
-     * @see SQLiteDatabase#enableWriteAheadLogging()
-     */
-    public void setWriteAheadLoggingEnabled(boolean enabled) {
-        synchronized (this) {
-            if (mEnableWriteAheadLogging != enabled) {
-                if (mDatabase != null && mDatabase.isOpen() && !mDatabase.isReadOnly()) {
-                    if (enabled) {
-                        mDatabase.enableWriteAheadLogging();
-                    } else {
-                        mDatabase.disableWriteAheadLogging();
-                    }
-                }
-                mEnableWriteAheadLogging = enabled;
-            }
-        }
     }
 
     /**
@@ -228,8 +201,7 @@ public abstract class SQLiteOpenHelper {
                             createConfiguration(path, SQLiteDatabase.OPEN_READONLY);
                         db = SQLiteDatabase.openDatabase(configuration, mFactory,  mErrorHandler);
                     } else {
-                        int flags = mEnableWriteAheadLogging ?
-                            SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING : 0;
+                        int flags = 0;
                         flags |= SQLiteDatabase.CREATE_IF_NECESSARY;
                         SQLiteDatabaseConfiguration configuration =
                             createConfiguration(path, flags);
@@ -312,9 +284,9 @@ public abstract class SQLiteOpenHelper {
      * the database except to configure the database connection as required.
      * </p><p>
      * This method should only call methods that configure the parameters of the
-     * database connection, such as {@link SQLiteDatabase#enableWriteAheadLogging}
+     * database connection, such as
      * {@link SQLiteDatabase#setForeignKeyConstraintsEnabled},
-     * {@link SQLiteDatabase#setLocale}, {@link SQLiteDatabase#setMaximumSize},
+     * {@link SQLiteDatabase#setMaximumSize},
      * or executing PRAGMA statements.
      * </p>
      *
