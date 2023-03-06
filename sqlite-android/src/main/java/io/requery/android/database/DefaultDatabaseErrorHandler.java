@@ -32,10 +32,8 @@ import java.util.List;
  * An application can specify an implementation of {@link DatabaseErrorHandler} on the
  * following:
  * <ul>
- *   <li>{@link SQLiteDatabase#openOrCreateDatabase(String,
- *      SQLiteDatabase.CursorFactory, DatabaseErrorHandler)}</li>
- *   <li>{@link SQLiteDatabase#openDatabase(String,
- *      SQLiteDatabase.CursorFactory, int, DatabaseErrorHandler)}</li>
+ *   <li>{@link SQLiteDatabase#openOrCreateDatabase(String,  DatabaseErrorHandler)}</li>
+ *   <li>{@link SQLiteDatabase#openDatabase(String, int, DatabaseErrorHandler)}</li>
  * </ul>
  * The specified {@link DatabaseErrorHandler} is used to handle database corruption errors, if they
  * occur.

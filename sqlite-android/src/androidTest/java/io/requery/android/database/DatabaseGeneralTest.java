@@ -20,7 +20,6 @@ package io.requery.android.database;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.CharArrayBuffer;
-import android.database.Cursor;
 import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteException;
 import android.os.Parcel;
@@ -32,6 +31,7 @@ import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
 import androidx.test.filters.Suppress;
+import io.requery.android.database.sqlite.SQLiteCursor;
 import io.requery.android.database.sqlite.SQLiteDatabase;
 import io.requery.android.database.sqlite.SQLiteStatement;
 import junit.framework.Assert;
@@ -61,7 +61,6 @@ public class DatabaseGeneralTest {
     private static final String sString1 = "this is a test";
     private static final String sString2 = "and yet another test";
     private static final String sString3 = "this string is a little longer, but still a test";
-    private static final String PHONE_NUMBER = "16175551212";
 
     private static final int CURRENT_DATABASE_VERSION = 42;
     private SQLiteDatabase mDatabase;
@@ -113,7 +112,7 @@ public class DatabaseGeneralTest {
         ContentValues values = new ContentValues(1);
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", values, "_id=1", null));
-        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(1, c.getCount());
         c.moveToFirst();
@@ -130,7 +129,7 @@ public class DatabaseGeneralTest {
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", SQLiteDatabase.CONFLICT_NONE, values,
                 "_id=?", new Object[] { 1 }));
-        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(1, c.getCount());
         c.moveToFirst();
@@ -144,7 +143,7 @@ public class DatabaseGeneralTest {
         populateDefaultTable();
 
         assertEquals(1, mDatabase.delete("test", "_id=?", new Object[] { 1 }));
-        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(0, c.getCount());
     }
@@ -155,7 +154,7 @@ public class DatabaseGeneralTest {
         temporalPhoneNumbers[0] = phone1;
         temporalPhoneNumbers[1] = phone2;
 
-        Cursor cursor = mDatabase.rawQuery(
+        SQLiteCursor cursor = mDatabase.rawQuery(
                 String.format(Locale.ROOT,
                         "SELECT CASE WHEN PHONE_NUMBERS_EQUAL(?, ?, %d) " +
                         "THEN 'equal' ELSE 'not equal' END",
@@ -187,7 +186,7 @@ public class DatabaseGeneralTest {
         phoneNumberCompare(phone1, phone2, true, useStrict);
     }
 
-    private void assertPhoneNumberNotEqual(String phone1, String phone2) throws Exception {
+    private void assertPhoneNumberNotEqual(String phone1, String phone2) {
         assertPhoneNumberNotEqual(phone1, phone2, true);
         assertPhoneNumberNotEqual(phone1, phone2, false);
     }
@@ -269,7 +268,7 @@ public class DatabaseGeneralTest {
         arr[0] = chinese;
         mDatabase.execSQL("INSERT INTO guess (numi,numf,str) VALUES (-32768,-1.0,?)", arr);
 
-        Cursor c;
+        SQLiteCursor c;
 
         c = mDatabase.rawQuery("SELECT * FROM guess", null);
         
@@ -314,7 +313,7 @@ public class DatabaseGeneralTest {
     @Test
     public void testSchemaChange1() {
         SQLiteDatabase db1 = mDatabase;
-        Cursor cursor;
+        SQLiteCursor cursor;
 
         db1.execSQL("CREATE TABLE db1 (_id INTEGER PRIMARY KEY, data TEXT);");
 
@@ -331,7 +330,7 @@ public class DatabaseGeneralTest {
     @Test
     public void testSchemaChange2() {
         mDatabase.execSQL("CREATE TABLE db1 (_id INTEGER PRIMARY KEY, data TEXT);");
-        Cursor cursor = mDatabase.query("SELECT * FROM db1");
+        SQLiteCursor cursor = mDatabase.query("SELECT * FROM db1");
         assertNotNull(cursor);
         assertEquals(0, cursor.getCount());
         cursor.close();
@@ -343,7 +342,7 @@ public class DatabaseGeneralTest {
         mDatabase.execSQL("CREATE TABLE db1 (_id INTEGER PRIMARY KEY, data TEXT);");
         mDatabase.execSQL("INSERT INTO db1 (data) VALUES ('test');");
         mDatabase.execSQL("ALTER TABLE db1 ADD COLUMN blah int;");
-        try (Cursor ignored = mDatabase.rawQuery("select blah from db1", null)) {
+        try (SQLiteCursor ignored = mDatabase.rawQuery("select blah from db1", null)) {
         } catch (SQLiteException e) {
             fail("unexpected exception: " + e.getMessage());
         }
@@ -359,7 +358,7 @@ public class DatabaseGeneralTest {
         values.clear();
         values.put("data", "no apostrophes here");
         mDatabase.insert("test", "data", values);
-        Cursor c = mDatabase.query("SELECT * FROM test WHERE data GLOB ?", new Object[]{"*'*"});
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE data GLOB ?", new Object[]{"*'*"});
         assertEquals(1, c.getCount());
         assertTrue(c.moveToFirst());
         assertEquals("don't forget to handled 's", c.getString(1));
@@ -670,7 +669,7 @@ public class DatabaseGeneralTest {
                 "t TEXT, " +
                 "'select' TEXT DEFAULT \"hello\")");
         try {
-            Cursor cur = mDatabase.rawQuery("PRAGMA table_info(pragma_test)", null);
+            SQLiteCursor cur = mDatabase.rawQuery("PRAGMA table_info(pragma_test)", null);
             Assert.assertEquals(5, cur.getCount());
 
             Assert.assertTrue(cur.moveToNext());
@@ -721,7 +720,7 @@ public class DatabaseGeneralTest {
                 "'select' TEXT DEFAULT \"hello\")");
         try {
             // ending the sql statement with  semicolons shouldn't be a problem.
-            Cursor cur = mDatabase.rawQuery("PRAGMA database_list;", null);
+            SQLiteCursor cur = mDatabase.rawQuery("PRAGMA database_list;", null);
             cur.close();
             // two semicolons in the statement shouldn't be a problem.
             cur = mDatabase.rawQuery("PRAGMA database_list;;", null);
@@ -749,13 +748,13 @@ public class DatabaseGeneralTest {
         String s = "select i from A where i > 2 " +
                 "UNION select k from B where k > 201 " +
                 "UNION select n from C where n !=900;";
-        Cursor c = mDatabase.rawQuery(s, null);
+        SQLiteCursor c = mDatabase.rawQuery(s, null);
         int n = c.getCount();
         c.close();
         String s1 = "select i from A where i > ? " +
                 "UNION select k from B where k > ? " +
                 "UNION select n from C where n != ?;";
-        Cursor c1 = mDatabase.rawQuery(s1, new String[]{"2", "201", "900"});
+        SQLiteCursor c1 = mDatabase.rawQuery(s1, new String[]{"2", "201", "900"});
         assertEquals(n, c1.getCount());
         c1.close();
     }
@@ -827,7 +826,7 @@ public class DatabaseGeneralTest {
             Locale.setDefault(englishLocale);
             Locale.setDefault(japaneseLocale);
 
-            Cursor cur = mDatabase.rawQuery(
+            SQLiteCursor cur = mDatabase.rawQuery(
                     "SELECT * FROM " + dbName + " ORDER BY s", null);
             assertTrue(cur.moveToFirst());
             assertEquals("アメリカ", cur.getString(1));

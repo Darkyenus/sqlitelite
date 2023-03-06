@@ -60,8 +60,7 @@ public class DatabaseErrorHandlerTest {
         if (mDatabaseFile.exists()) {
             mDatabaseFile.delete();
         }
-        mDatabase = SQLiteDatabase.openOrCreateDatabase(mDatabaseFile.getPath(), null,
-                new MyDatabaseCorruptionHandler());
+        mDatabase = SQLiteDatabase.openOrCreateDatabase(mDatabaseFile.getPath(), new MyDatabaseCorruptionHandler());
         assertNotNull(mDatabase);
     }
 
@@ -109,8 +108,7 @@ public class DatabaseErrorHandlerTest {
         assertFalse(mDatabaseFile.exists());
         // after corruption handler is called, the database file should be free of
         // database corruption
-        SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(mDatabaseFile.getPath(), null,
-                new MyDatabaseCorruptionHandler());
+        SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(mDatabaseFile.getPath(), new MyDatabaseCorruptionHandler());
         assertTrue(db.isDatabaseIntegrityOk());
     }
 

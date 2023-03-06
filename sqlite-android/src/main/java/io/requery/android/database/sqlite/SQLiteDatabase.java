@@ -23,7 +23,6 @@ package io.requery.android.database.sqlite;
 
 import android.annotation.SuppressLint;
 import android.content.ContentValues;
-import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteException;
@@ -103,10 +102,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
             return createSession();
         }
     };
-
-    // The optional factory to use when creating new Cursors.  May be null.
-    // INVARIANT: Immutable.
-    private final CursorFactory mCursorFactory;
 
     // Error handler to be used when SQLite returns corruption errors.
     // INVARIANT: Immutable.
@@ -264,9 +259,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public static final int MAX_SQL_CACHE_SIZE = 100;
 
     private SQLiteDatabase(SQLiteDatabaseConfiguration configuration,
-                           CursorFactory cursorFactory,
                            DatabaseErrorHandler errorHandler) {
-        mCursorFactory = cursorFactory;
         mErrorHandler = errorHandler != null ? errorHandler : new DefaultDatabaseErrorHandler();
         mConfigurationLocked = configuration;
     }
@@ -634,16 +627,13 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * Open the database according to the flags {@link OpenFlags}
      *
      * @param path to database file to open and/or create
-     * @param factory an optional factory class that is called to instantiate a
-     *            cursor when query is called, or null for default
      * @param flags to control database access mode
      * @return the newly opened database
      * @throws SQLiteException if the database cannot be opened
      */
     public static SQLiteDatabase openDatabase(String path,
-                                              CursorFactory factory,
                                               @OpenFlags int flags) {
-        return openDatabase(path, factory, flags, null);
+        return openDatabase(path, flags, null);
     }
 
     /**
@@ -653,8 +643,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * used to handle corruption when sqlite reports database corruption.</p>
      *
      * @param path to database file to open and/or create
-     * @param factory an optional factory class that is called to instantiate a
-     *            cursor when query is called, or null for default
      * @param flags to control database access mode
      * @param errorHandler the {@link DatabaseErrorHandler} obj to be used to handle corruption
      * when sqlite reports database corruption
@@ -662,11 +650,10 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @throws SQLiteException if the database cannot be opened
      */
     public static SQLiteDatabase openDatabase(String path,
-                                              CursorFactory factory,
                                               @OpenFlags int flags,
                                               DatabaseErrorHandler errorHandler) {
         SQLiteDatabaseConfiguration configuration = new SQLiteDatabaseConfiguration(path, flags);
-        SQLiteDatabase db = new SQLiteDatabase(configuration, factory, errorHandler);
+        SQLiteDatabase db = new SQLiteDatabase(configuration, errorHandler);
         db.open();
         return db;
     }
@@ -678,17 +665,14 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * used to handle corruption when sqlite reports database corruption.</p>
      *
      * @param configuration to database configuration to use
-     * @param factory an optional factory class that is called to instantiate a
-     *            cursor when query is called, or null for default
      * @param errorHandler the {@link DatabaseErrorHandler} obj to be used to handle corruption
      * when sqlite reports database corruption
      * @return the newly opened database
      * @throws SQLiteException if the database cannot be opened
      */
     public static SQLiteDatabase openDatabase(SQLiteDatabaseConfiguration configuration,
-                                              CursorFactory factory,
                                               DatabaseErrorHandler errorHandler) {
-        SQLiteDatabase db = new SQLiteDatabase(configuration, factory, errorHandler);
+        SQLiteDatabase db = new SQLiteDatabase(configuration, errorHandler);
         db.open();
         return db;
     }
@@ -696,23 +680,23 @@ public final class SQLiteDatabase extends SQLiteClosable {
     /**
      * Equivalent to openDatabase(file.getPath(), factory, CREATE_IF_NECESSARY).
      */
-    public static SQLiteDatabase openOrCreateDatabase(File file, CursorFactory factory) {
-        return openOrCreateDatabase(file.getPath(), factory);
+    public static SQLiteDatabase openOrCreateDatabase(File file) {
+        return openOrCreateDatabase(file.getPath());
     }
 
     /**
      * Equivalent to openDatabase(path, factory, CREATE_IF_NECESSARY).
      */
-    public static SQLiteDatabase openOrCreateDatabase(String path, CursorFactory factory) {
-        return openDatabase(path, factory, CREATE_IF_NECESSARY, null);
+    public static SQLiteDatabase openOrCreateDatabase(String path) {
+        return openDatabase(path, CREATE_IF_NECESSARY, null);
     }
 
     /**
      * Equivalent to openDatabase(path, factory, CREATE_IF_NECESSARY, errorHandler).
      */
-    public static SQLiteDatabase openOrCreateDatabase(String path, CursorFactory factory,
+    public static SQLiteDatabase openOrCreateDatabase(String path,
             DatabaseErrorHandler errorHandler) {
-        return openDatabase(path, factory, CREATE_IF_NECESSARY, errorHandler);
+        return openDatabase(path, CREATE_IF_NECESSARY, errorHandler);
     }
 
     /**
@@ -833,14 +817,11 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * Create a memory backed SQLite database.  Its contents will be destroyed
      * when the database is closed.
      *
-     * @param factory an optional factory class that is called to instantiate a
-     *            cursor when query is called
      * @return a SQLiteDatabase object, or null if the database can't be created
      */
-    public static SQLiteDatabase create(CursorFactory factory) {
+    public static SQLiteDatabase create() {
         // This is a magic string with special meaning for SQLite.
-        return openDatabase(SQLiteDatabaseConfiguration.MEMORY_DB_PATH,
-                factory, CREATE_IF_NECESSARY);
+        return openDatabase(SQLiteDatabaseConfiguration.MEMORY_DB_PATH, CREATE_IF_NECESSARY);
     }
 
     /**
@@ -957,45 +938,45 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
 
     /**
-     * Runs the provided SQL and returns a {@link Cursor} over the result set.
+     * Runs the provided SQL and returns a {@link SQLiteCursor} over the result set.
      *
      * @param query the SQL query. The SQL string must not be ; terminated
-     * @return A {@link Cursor} object, which is positioned before the first entry. Note that
-     * {@link Cursor}s are not synchronized, see the documentation for more details.
+     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
+     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
      */
-    public Cursor query(String query) {
-        return rawQueryWithFactory(null, query, null, null, null);
+    public SQLiteCursor query(String query) {
+        return rawQueryWithFactory(query, null, null, null);
     }
 
     /**
-     * Runs the provided SQL and returns a {@link Cursor} over the result set.
+     * Runs the provided SQL and returns a {@link SQLiteCursor} over the result set.
      *
      * @param query the SQL query. The SQL string must not be ; terminated
      * @param selectionArgs You may include ?s in where clause in the query,
      *     which will be replaced by the values from selectionArgs.
-     * @return A {@link Cursor} object, which is positioned before the first entry. Note that
-     * {@link Cursor}s are not synchronized, see the documentation for more details.
+     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
+     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
      */
-    public Cursor query(String query, Object[] selectionArgs) {
-        return rawQueryWithFactory(null, query, selectionArgs, null, null);
+    public SQLiteCursor query(String query, Object[] selectionArgs) {
+        return rawQueryWithFactory(query, selectionArgs, null, null);
     }
 
 
     /**
-     * Runs the provided SQL and returns a {@link Cursor} over the result set.
+     * Runs the provided SQL and returns a {@link SQLiteCursor} over the result set.
      *
      * @param sql the SQL query. The SQL string must not be ; terminated
      * @param selectionArgs You may include ?s in where clause in the query,
      *     which will be replaced by the values from selectionArgs.
-     * @return A {@link Cursor} object, which is positioned before the first entry. Note that
-     * {@link Cursor}s are not synchronized, see the documentation for more details.
+     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
+     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
      */
-    public Cursor rawQuery(String sql, Object[] selectionArgs) {
-        return rawQueryWithFactory(null, sql, selectionArgs, null, null);
+    public SQLiteCursor rawQuery(String sql, Object[] selectionArgs) {
+        return rawQueryWithFactory(sql, selectionArgs, null, null);
     }
 
     /**
-     * Runs the provided SQL and returns a {@link Cursor} over the result set.
+     * Runs the provided SQL and returns a {@link SQLiteCursor} over the result set.
      *
      * @param sql the SQL query. The SQL string must not be ; terminated
      * @param selectionArgs You may include ?s in where clause in the query,
@@ -1003,35 +984,31 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
      * If the operation is canceled, then {@link OperationCanceledException} will be thrown
      * when the query is executed.
-     * @return A {@link Cursor} object, which is positioned before the first entry. Note that
-     * {@link Cursor}s are not synchronized, see the documentation for more details.
+     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
+     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
      */
-    public Cursor rawQuery(String sql, Object[] selectionArgs,
+    public SQLiteCursor rawQuery(String sql, Object[] selectionArgs,
             CancellationSignal cancellationSignal) {
-        return rawQueryWithFactory(null, sql, selectionArgs, null, cancellationSignal);
+        return rawQueryWithFactory(sql, selectionArgs, null, cancellationSignal);
     }
 
     /**
      * Runs the provided SQL and returns a cursor over the result set.
      *
-     * @param cursorFactory the cursor factory to use, or null for the default factory
      * @param sql the SQL query. The SQL string must not be ; terminated
      * @param selectionArgs You may include ?s in where clause in the query,
      *     which will be replaced by the values from selectionArgs.
      * @param editTable the name of the first table, which is editable
-     * @return A {@link Cursor} object, which is positioned before the first entry. Note that
-     * {@link Cursor}s are not synchronized, see the documentation for more details.
+     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
+     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
      */
-    public Cursor rawQueryWithFactory(
-            CursorFactory cursorFactory, String sql, Object[] selectionArgs,
-            String editTable) {
-        return rawQueryWithFactory(cursorFactory, sql, selectionArgs, editTable, null);
+    public SQLiteCursor rawQueryWithFactory(String sql, Object[] selectionArgs, String editTable) {
+        return rawQueryWithFactory(sql, selectionArgs, editTable, null);
     }
 
     /**
      * Runs the provided SQL and returns a cursor over the result set.
      *
-     * @param cursorFactory the cursor factory to use, or null for the default factory
      * @param sql the SQL query. The SQL string must not be ; terminated
      * @param selectionArgs You may include ?s in where clause in the query,
      *     which will be replaced by the values from selectionArgs.
@@ -1039,18 +1016,15 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
      * If the operation is canceled, then {@link OperationCanceledException} will be thrown
      * when the query is executed.
-     * @return A {@link Cursor} object, which is positioned before the first entry. Note that
-     * {@link Cursor}s are not synchronized, see the documentation for more details.
+     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
+     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
      */
-    public Cursor rawQueryWithFactory(
-            CursorFactory cursorFactory, String sql, Object[] selectionArgs,
-            String editTable, CancellationSignal cancellationSignal) {
+    public SQLiteCursor rawQueryWithFactory(String sql, Object[] selectionArgs, String editTable, CancellationSignal cancellationSignal) {
         acquireReference();
         try {
             SQLiteCursorDriver driver = new SQLiteDirectCursorDriver(this, sql, editTable,
                     cancellationSignal);
-            return driver.query(cursorFactory != null ? cursorFactory : mCursorFactory,
-                    selectionArgs);
+            return driver.query(selectionArgs);
         } finally {
             releaseReference();
         }
@@ -1679,7 +1653,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
         try {
             // has attached databases. query sqlite to get the list of attached databases.
-            Cursor c = null;
+            SQLiteCursor c = null;
             try {
                 c = rawQuery("pragma database_list;", null);
                 while (c.moveToNext()) {
@@ -1762,17 +1736,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         }
     }
 
-    /**
-     * Used to allow returning sub-classes of {@link Cursor} when calling query.
-     */
-    public interface CursorFactory {
-        /**
-         * See {@link SQLiteCursor#SQLiteCursor(SQLiteCursorDriver, String, SQLiteQuery)}.
-         */
-        Cursor newCursor(SQLiteDatabase db,
-                         SQLiteCursorDriver masterQuery, String editTable,
-                         SQLiteQuery query);
-    }
 
     /**
      * Query the table for the number of rows in the table.

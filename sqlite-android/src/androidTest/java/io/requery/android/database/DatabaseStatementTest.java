@@ -18,20 +18,18 @@
 package io.requery.android.database;
 
 import android.content.Context;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteDoneException;
-
+import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.MediumTest;
+import io.requery.android.database.sqlite.SQLiteCursor;
+import io.requery.android.database.sqlite.SQLiteDatabase;
+import io.requery.android.database.sqlite.SQLiteStatement;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import androidx.test.core.app.ApplicationProvider;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.filters.MediumTest;
-import io.requery.android.database.sqlite.SQLiteDatabase;
-import io.requery.android.database.sqlite.SQLiteStatement;
 
 import java.io.File;
 
@@ -90,7 +88,7 @@ public class DatabaseStatementTest {
         SQLiteStatement statement = mDatabase.compileStatement("DELETE FROM test");
         statement.execute();
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         assertEquals(0, c.getCount());
         c.close();
         statement.close();
@@ -146,7 +144,7 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         int numCol = c.getColumnIndexOrThrow("num");
         c.moveToFirst();
         for (long i = 0; i < 10; i++) {
@@ -169,7 +167,7 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         int numCol = c.getColumnIndexOrThrow("num");
         c.moveToFirst();
         for (long i = 0; i < 10; i++) {
@@ -193,7 +191,7 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        Cursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
         int numCol = c.getColumnIndexOrThrow("num");
         assertTrue(c.moveToFirst());
         for (long i = 0; i < 10; i++) {
@@ -216,7 +214,7 @@ public class DatabaseStatementTest {
 
         mDatabase.execSQL(statement, args);
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         int numCol = c.getColumnIndexOrThrow("num");
         int valCol = c.getColumnIndexOrThrow("value");
         c.moveToFirst();
@@ -242,7 +240,7 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        Cursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
         int numCol = c.getColumnIndexOrThrow("num");
         int strCol = c.getColumnIndexOrThrow("str");
         assertTrue(c.moveToFirst());
@@ -277,7 +275,7 @@ public class DatabaseStatementTest {
             mDatabase.setTransactionSuccessful();
             mDatabase.endTransaction();
 
-            Cursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
+            SQLiteCursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
             int numCol = c.getColumnIndexOrThrow("num");
             int strCol = c.getColumnIndexOrThrow("str");
             assertTrue(c.moveToFirst());
@@ -328,7 +326,7 @@ public class DatabaseStatementTest {
         statement.execute();
         statement.close();
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         int numCol = c.getColumnIndexOrThrow("num");
         c.moveToFirst();
         long num = c.getLong(numCol);

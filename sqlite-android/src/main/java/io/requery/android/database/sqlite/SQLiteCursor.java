@@ -236,13 +236,6 @@ public class SQLiteCursor extends AbstractWindowedCursor {
     }
 
     /**
-     * Changes the selection arguments. The new values take effect after a call to requery().
-     */
-    public void setSelectionArguments(String[] selectionArgs) {
-        mDriver.setBindArguments(selectionArgs);
-    }
-
-    /**
      * Release the native resources, if they haven't been released yet.
      */
     @Override

@@ -23,21 +23,18 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteStatement;
 import android.provider.BaseColumns;
 import android.util.Log;
+import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import io.requery.android.database.sqlite.SQLiteCursor;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import androidx.test.core.app.ApplicationProvider;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 @RunWith(AndroidJUnit4.class)
 public class BenchmarkTest {
-
     private static final String TAG = "SQLite";
-    private static final int COUNT = 10000;
 
     private PlatformSQLite platformSQLite;
     private RequerySQLite requerySQLite;
@@ -45,34 +42,39 @@ public class BenchmarkTest {
     @Test
     public void runBenchmark() {
         final int runs = 5;
-        Statistics android = new Statistics();
-        Statistics requery = new Statistics();
-        for (int i = 0; i < runs; i++) {
+        final ArrayList<String> logs = new ArrayList<>();
+        for (int count : new int[]{100, 1000, 10_000, 100_000}) {
+            Statistics android = new Statistics();
+            Statistics requery = new Statistics();
+            for (int i = 0; i < runs; i++) {
+                Context context = ApplicationProvider.getApplicationContext();
+                String dbName = "testAndroid.db";
+                context.deleteDatabase(dbName);
+                platformSQLite = new PlatformSQLite(context, dbName);
+                dbName = "testRequery.db";
+                context.deleteDatabase(dbName);
+                requerySQLite = new RequerySQLite(context, dbName);
 
-            Context context = ApplicationProvider.getApplicationContext();
-            String dbName = "testAndroid.db";
-            context.deleteDatabase(dbName);
-            platformSQLite = new PlatformSQLite(context, dbName);
-            dbName = "testRequery.db";
-            context.deleteDatabase(dbName);
-            requerySQLite = new RequerySQLite(context, dbName);
+                testAndroidSQLiteRead(android, count);
+                testRequerySQLiteRead(requery, count);
 
-            testAndroidSQLiteRead(android);
-            testRequerySQLiteRead(requery);
-
-            if (platformSQLite != null) {
-                platformSQLite.close();
+                if (platformSQLite != null) {
+                    platformSQLite.close();
+                }
+                if (requerySQLite != null) {
+                    requerySQLite.close();
+                }
             }
-            if (requerySQLite != null) {
-                requerySQLite.close();
-            }
+            logs.add("Android (" + count + "): " + android.toString(count));
+            logs.add("requery (" + count + "): " + requery.toString(count));
         }
-        Log.i(TAG, "Android: " + android.toString());
-        Log.i(TAG, "requery: " + requery.toString());
+        for (String log : logs) {
+            Log.i(TAG, log);
+        }
     }
 
-    private void testAndroidSQLiteRead(Statistics statistics) {
-        testAndroidSQLiteWrite(statistics);
+    private void testAndroidSQLiteRead(Statistics statistics, int count) {
+        testAndroidSQLiteWrite(statistics, count);
         Trace trace = new Trace("Android Read");
         Cursor cursor = null;
         try {
@@ -89,7 +91,7 @@ public class BenchmarkTest {
         statistics.read( trace.exit() );
     }
 
-    private void testAndroidSQLiteWrite(Statistics statistics) {
+    private void testAndroidSQLiteWrite(Statistics statistics, int count) {
         Trace trace = new Trace("Android Write");
         SQLiteDatabase db = platformSQLite.getReadableDatabase();
         SQLiteStatement statement = db.compileStatement(
@@ -99,7 +101,7 @@ public class BenchmarkTest {
                 Record.COLUMN_CREATED_TIME));
         try {
             db.beginTransaction();
-            for (int i = 0; i < COUNT; i++) {
+            for (int i = 0; i < count; i++) {
                 Record record = Record.create(i);
                 statement.bindString(1, record.getContent());
                 statement.bindDouble(2, record.getCreatedTime());
@@ -113,7 +115,7 @@ public class BenchmarkTest {
         statistics.write( trace.exit() );
     }
 
-    private void testRequerySQLiteWrite(Statistics statistics) {
+    private void testRequerySQLiteWrite(Statistics statistics, int count) {
         Trace trace = new Trace("requery Write");
         io.requery.android.database.sqlite.SQLiteDatabase db = requerySQLite.getWritableDatabase();
         io.requery.android.database.sqlite.SQLiteStatement statement = db.compileStatement(
@@ -123,7 +125,7 @@ public class BenchmarkTest {
                 Record.COLUMN_CREATED_TIME));
         try {
             db.beginTransaction();
-            for (int i = 0; i < COUNT; i++) {
+            for (int i = 0; i < count; i++) {
                 Record record = Record.create(i);
                 statement.bindString(1, record.getContent());
                 statement.bindDouble(2, record.getCreatedTime());
@@ -137,10 +139,10 @@ public class BenchmarkTest {
         statistics.write( trace.exit() );
     }
 
-    private void testRequerySQLiteRead(Statistics statistics) {
-        testRequerySQLiteWrite(statistics);
+    private void testRequerySQLiteRead(Statistics statistics, int count) {
+        testRequerySQLiteWrite(statistics, count);
         Trace trace = new Trace("requery Read");
-        Cursor cursor = null;
+        SQLiteCursor cursor = null;
         try {
             io.requery.android.database.sqlite.SQLiteDatabase db = requerySQLite.getWritableDatabase();
             cursor = db.query("SELECT "+Record.COLUMN_ID+", "+Record.COLUMN_CONTENT+", "+Record.COLUMN_CREATED_TIME +" FROM "+Record.TABLE_NAME);
@@ -154,6 +156,20 @@ public class BenchmarkTest {
     }
 
     private static void readCursor(Cursor cursor) {
+        if(cursor != null) {
+            int indexId = cursor.getColumnIndexOrThrow(Record.COLUMN_ID);
+            int indexContent = cursor.getColumnIndexOrThrow(Record.COLUMN_CONTENT);
+            int indexCreatedTime = cursor.getColumnIndexOrThrow(Record.COLUMN_CREATED_TIME);
+            while (cursor.moveToNext()) {
+                Record record = new Record();
+                record.setId(cursor.getLong(indexId));
+                record.setContent(cursor.getString(indexContent));
+                record.setCreatedTime(cursor.getLong(indexCreatedTime));
+            }
+        }
+    }
+
+    private static void readCursor(SQLiteCursor cursor) {
         if(cursor != null) {
             int indexId = cursor.getColumnIndexOrThrow(Record.COLUMN_ID);
             int indexContent = cursor.getColumnIndexOrThrow(Record.COLUMN_CONTENT);
@@ -241,7 +257,7 @@ public class BenchmarkTest {
     private static class RequerySQLite extends
         io.requery.android.database.sqlite.SQLiteOpenHelper {
         public RequerySQLite(Context context, String name) {
-            super(context, name, null, 1);
+            super(context, name, 1);
         }
 
         @Override
@@ -257,39 +273,34 @@ public class BenchmarkTest {
     }
 
     private static class Statistics {
-        private final List<Long> reads = new ArrayList<>();
-        private final List<Long> writes = new ArrayList<>();
+        private long readsSum = 0;
+        private int readsCount = 0;
+        private long writesSum = 0;
+        private int writesCount = 0;
 
         void read(long elapsedMS) {
-            reads.add(elapsedMS);
+            readsSum += elapsedMS;
+            readsCount++;
         }
 
         void write(long elapsedMS) {
-            writes.add(elapsedMS);
+            writesSum += elapsedMS;
+            writesCount++;
         }
 
         float readAverageMS() {
-            return average(reads);
+            return readsSum / (float) readsCount;
         }
 
         float writeAverageMS() {
-            return average(writes);
+            return writesSum / (float) writesCount;
         }
 
-        float average(List<Long> times) {
-            long total = 0;
-            for (Long time : times) {
-                total += time;
-            }
-            return total / (float) times.size();
-        }
-
-        @Override
-        public String toString() {
+        public String toString(int count) {
             return "Read AVG " + readAverageMS() +
                 " Write AVG " + writeAverageMS() + "\n" +
-                " Rows/sec " + COUNT / readAverageMS() * 1000f +
-                " Inserts/sec " + COUNT / writeAverageMS() * 1000f;
+                " Rows/sec " + count / readAverageMS() * 1000f +
+                " Inserts/sec " + count / writeAverageMS() * 1000f;
         }
     }
 

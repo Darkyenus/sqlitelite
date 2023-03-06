@@ -21,7 +21,6 @@ import android.content.ContentResolver;
 import android.database.CharArrayBuffer;
 import android.database.ContentObservable;
 import android.database.ContentObserver;
-import android.database.Cursor;
 import android.database.CursorIndexOutOfBoundsException;
 import android.database.DataSetObservable;
 import android.database.DataSetObserver;
@@ -30,13 +29,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
+import java.io.Closeable;
 import java.lang.ref.WeakReference;
 
 /**
  * This is an abstract cursor class that handles a lot of the common code
  * that all cursors need to deal with and is provided for convenience reasons.
  */
-public abstract class AbstractCursor implements Cursor {
+public abstract class AbstractCursor implements Closeable {
 
     private static final String TAG = "Cursor";
 
@@ -57,41 +57,28 @@ public abstract class AbstractCursor implements Cursor {
 
     private Bundle mExtras = Bundle.EMPTY;
 
-    @Override
     abstract public int getCount();
 
-    @Override
     abstract public String[] getColumnNames();
 
-    @Override
     abstract public String getString(int column);
-    @Override
     abstract public short getShort(int column);
-    @Override
     abstract public int getInt(int column);
-    @Override
     abstract public long getLong(int column);
-    @Override
     abstract public float getFloat(int column);
-    @Override
     abstract public double getDouble(int column);
-    @Override
     abstract public boolean isNull(int column);
 
-    @Override
     public abstract int getType(int column);
 
-    @Override
     public byte[] getBlob(int column) {
         throw new UnsupportedOperationException("getBlob is not supported");
     }
 
-    @Override
     public int getColumnCount() {
         return getColumnNames().length;
     }
 
-    @Override
     public void deactivate() {
         onDeactivateOrClose();
     }
@@ -105,7 +92,6 @@ public abstract class AbstractCursor implements Cursor {
         mDataSetObservable.notifyInvalidated();
     }
 
-    @Override
     public boolean requery() {
         if (mSelfObserver != null && !mSelfObserverRegistered) {
             mContentResolver.registerContentObserver(mNotifyUri, true, mSelfObserver);
@@ -115,19 +101,16 @@ public abstract class AbstractCursor implements Cursor {
         return true;
     }
 
-    @Override
     public boolean isClosed() {
         return mClosed;
     }
 
-    @Override
     public void close() {
         mClosed = true;
         mContentObservable.unregisterAll();
         onDeactivateOrClose();
     }
 
-    @Override
     public void copyStringToBuffer(int columnIndex, CharArrayBuffer buffer) {
         // Default implementation, uses getString
         String result = getString(columnIndex);
@@ -148,12 +131,10 @@ public abstract class AbstractCursor implements Cursor {
         mPos = -1;
     }
 
-    @Override
     public final int getPosition() {
         return mPos;
     }
 
-    @Override
     public final boolean moveToPosition(int position) {
         // Make sure position isn't past the end of the cursor
         final int count = getCount();
@@ -199,53 +180,43 @@ public abstract class AbstractCursor implements Cursor {
      */
     public abstract boolean onMove(int oldPosition, int newPosition);
 
-    @Override
     public final boolean move(int offset) {
         return moveToPosition(mPos + offset);
     }
 
-    @Override
     public final boolean moveToFirst() {
         return moveToPosition(0);
     }
 
-    @Override
     public final boolean moveToLast() {
         return moveToPosition(getCount() - 1);
     }
 
-    @Override
     public final boolean moveToNext() {
         return moveToPosition(mPos + 1);
     }
 
-    @Override
     public final boolean moveToPrevious() {
         return moveToPosition(mPos - 1);
     }
 
-    @Override
     public final boolean isFirst() {
         return mPos == 0 && getCount() != 0;
     }
 
-    @Override
     public final boolean isLast() {
         int cnt = getCount();
         return mPos == (cnt - 1) && cnt != 0;
     }
 
-    @Override
     public final boolean isBeforeFirst() {
         return getCount() == 0 || mPos == -1;
     }
 
-    @Override
     public final boolean isAfterLast() {
         return getCount() == 0 || mPos == getCount();
     }
 
-    @Override
     public int getColumnIndex(String columnName) {
         // Hack according to bug 903852
         final int periodIndex = columnName.lastIndexOf('.');
@@ -265,7 +236,6 @@ public abstract class AbstractCursor implements Cursor {
         return -1;
     }
 
-    @Override
     public int getColumnIndexOrThrow(String columnName) {
         final int index = getColumnIndex(columnName);
         if (index < 0) {
@@ -274,17 +244,14 @@ public abstract class AbstractCursor implements Cursor {
         return index;
     }
 
-    @Override
     public String getColumnName(int columnIndex) {
         return getColumnNames()[columnIndex];
     }
 
-    @Override
     public void registerContentObserver(ContentObserver observer) {
         mContentObservable.registerObserver(observer);
     }
 
-    @Override
     public void unregisterContentObserver(ContentObserver observer) {
         // cursor will unregister all observers when it close
         if (!mClosed) {
@@ -292,12 +259,10 @@ public abstract class AbstractCursor implements Cursor {
         }
     }
 
-    @Override
     public void registerDataSetObserver(DataSetObserver observer) {
         mDataSetObservable.registerObserver(observer);
     }
 
-    @Override
     public void unregisterDataSetObserver(DataSetObserver observer) {
         mDataSetObservable.unregisterObserver(observer);
     }
@@ -329,7 +294,6 @@ public abstract class AbstractCursor implements Cursor {
      * @param notifyUri The URI to watch for changes. This can be a
      * specific row URI, or a base URI for a whole class of content.
      */
-    @Override
     public void setNotificationUri(ContentResolver cr, Uri notifyUri) {
         synchronized (mSelfObserverLock) {
             mNotifyUri = notifyUri;
@@ -343,29 +307,24 @@ public abstract class AbstractCursor implements Cursor {
         }
     }
 
-    @Override
     public Uri getNotificationUri() {
         synchronized (mSelfObserverLock) {
             return mNotifyUri;
         }
     }
 
-    @Override
     public boolean getWantsAllOnMoveCalls() {
         return false;
     }
 
-    @Override
     public void setExtras(Bundle extras) {
         mExtras = (extras == null) ? Bundle.EMPTY : extras;
     }
 
-    @Override
     public Bundle getExtras() {
         return mExtras;
     }
 
-    @Override
     public Bundle respond(Bundle extras) {
         return Bundle.EMPTY;
     }
@@ -384,7 +343,6 @@ public abstract class AbstractCursor implements Cursor {
     }
 
     @SuppressWarnings("FinalizeDoesntCallSuperFinalize")
-    @Override
     protected void finalize() {
         if (mSelfObserver != null && mSelfObserverRegistered) {
             mContentResolver.unregisterContentObserver(mSelfObserver);
@@ -405,13 +363,11 @@ public abstract class AbstractCursor implements Cursor {
             mCursor = new WeakReference<>(cursor);
         }
 
-        @Override
-        public boolean deliverSelfNotifications() {
+            public boolean deliverSelfNotifications() {
             return false;
         }
 
-        @Override
-        public void onChange(boolean selfChange) {
+            public void onChange(boolean selfChange) {
             AbstractCursor cursor = mCursor.get();
             if (cursor != null) {
                 cursor.onChange(false);

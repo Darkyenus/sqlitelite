@@ -54,7 +54,6 @@ public abstract class SQLiteOpenHelper {
 
     private final Context mContext;
     private final String mName;
-    private final SQLiteDatabase.CursorFactory mFactory;
     private final int mNewVersion;
 
     private SQLiteDatabase mDatabase;
@@ -69,16 +68,14 @@ public abstract class SQLiteOpenHelper {
      *
      * @param context to use to open or create the database
      * @param name of the database file, or null for an in-memory database
-     * @param factory to use for creating cursor objects, or null for the default
      * @param version number of the database (starting at 1); if the database is older,
      *     {@link #onUpgrade} will be used to upgrade the database; if the database is
      *     newer, {@link #onDowngrade} will be used to downgrade the database
      */
     public SQLiteOpenHelper(Context context,
                             String name,
-                            SQLiteDatabase.CursorFactory factory,
                             int version) {
-        this(context, name, factory, version, null);
+        this(context, name, version, null);
     }
 
     /**
@@ -91,7 +88,6 @@ public abstract class SQLiteOpenHelper {
      *
      * @param context to use to open or create the database
      * @param name of the database file, or null for an in-memory database
-     * @param factory to use for creating cursor objects, or null for the default
      * @param version number of the database (starting at 1); if the database is older,
      *     {@link #onUpgrade} will be used to upgrade the database; if the database is
      *     newer, {@link #onDowngrade} will be used to downgrade the database
@@ -99,14 +95,12 @@ public abstract class SQLiteOpenHelper {
      * corruption, or null to use the default error handler.
      */
     public SQLiteOpenHelper(Context context, String name,
-                            SQLiteDatabase.CursorFactory factory,
                             int version,
                             DatabaseErrorHandler errorHandler) {
         if (version < 1) throw new IllegalArgumentException("Version must be >= 1, was " + version);
 
         mContext = context;
         mName = name;
-        mFactory = factory;
         mNewVersion = version;
         mErrorHandler = errorHandler;
     }
@@ -192,20 +186,20 @@ public abstract class SQLiteOpenHelper {
                     db.reopenReadWrite();
                 }
             } else if (mName == null) {
-                db = SQLiteDatabase.create(null);
+                db = SQLiteDatabase.create();
             } else {
                 try {
                     final String path = mContext.getDatabasePath(mName).getPath();
                     if (DEBUG_STRICT_READONLY && !writable) {
                         SQLiteDatabaseConfiguration configuration =
                             createConfiguration(path, SQLiteDatabase.OPEN_READONLY);
-                        db = SQLiteDatabase.openDatabase(configuration, mFactory,  mErrorHandler);
+                        db = SQLiteDatabase.openDatabase(configuration, mErrorHandler);
                     } else {
                         int flags = 0;
                         flags |= SQLiteDatabase.CREATE_IF_NECESSARY;
                         SQLiteDatabaseConfiguration configuration =
                             createConfiguration(path, flags);
-                        db = SQLiteDatabase.openDatabase(configuration, mFactory, mErrorHandler);
+                        db = SQLiteDatabase.openDatabase(configuration, mErrorHandler);
                     }
                 } catch (SQLiteException ex) {
                     if (writable) {
@@ -216,7 +210,7 @@ public abstract class SQLiteOpenHelper {
                     final String path = mContext.getDatabasePath(mName).getPath();
                     SQLiteDatabaseConfiguration configuration =
                         createConfiguration(path, SQLiteDatabase.OPEN_READONLY);
-                    db = SQLiteDatabase.openDatabase(configuration, mFactory, mErrorHandler);
+                    db = SQLiteDatabase.openDatabase(configuration, mErrorHandler);
                 }
             }
 

@@ -17,15 +17,12 @@
 
 package io.requery.android.database;
 
-import android.database.Cursor;
 import android.util.Log;
-
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
-import androidx.test.filters.Suppress;
+import io.requery.android.database.sqlite.SQLiteCursor;
 import io.requery.android.database.sqlite.SQLiteDatabase;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,7 +30,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
-import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -56,7 +52,7 @@ public class DatabaseLocaleTest {
 
     @Before
     public void setUp() {
-        mDatabase = SQLiteDatabase.create(null);
+        mDatabase = SQLiteDatabase.create();
         mDatabase.execSQL(
                 "CREATE TABLE test (id INTEGER PRIMARY KEY, data TEXT);");
     }
@@ -74,7 +70,7 @@ public class DatabaseLocaleTest {
 
     private String[] query(String sql) {
         Log.i("LocaleTest", "Querying: " + sql);
-        Cursor c = mDatabase.rawQuery(sql, null);
+        SQLiteCursor c = mDatabase.rawQuery(sql, null);
         Assert.assertNotNull(c);
         ArrayList<String> items = new ArrayList<>();
         while (c.moveToNext()) {
@@ -98,7 +94,7 @@ public class DatabaseLocaleTest {
     @SmallTest
     @Test
     public void testHoge() {
-        Cursor cursor = null;
+        SQLiteCursor cursor = null;
         try {
             String expectedString = new String(new int[] {0xFE000}, 0, 1);
             mDatabase.execSQL("INSERT INTO test(id, data) VALUES(1, '" + expectedString + "')");

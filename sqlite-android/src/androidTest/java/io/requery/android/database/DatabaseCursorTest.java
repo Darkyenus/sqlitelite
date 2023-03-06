@@ -118,7 +118,7 @@ public class DatabaseCursorTest {
         String sql = "INSERT INTO test (s, d, l, b) VALUES (?,?,?,?)";
         mDatabase.execSQL(sql, args);
         // use cursor to access blob
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         c.moveToNext();
         ContentValues cv = new ContentValues();
         //DatabaseUtils.cursorRowToContentValues(c, cv);
@@ -152,7 +152,7 @@ public class DatabaseCursorTest {
         values.put("data", 42.11);
         long id = mDatabase.insert("test", "data", values);
         assertTrue(id > 0);
-        Cursor c = mDatabase.rawQuery("SELECT data FROM test", null);
+        SQLiteCursor c = mDatabase.rawQuery("SELECT data FROM test", null);
         assertNotNull(c);
         assertTrue(c.moveToFirst());
         assertEquals(42.11, c.getDouble(0), 0);
@@ -164,7 +164,7 @@ public class DatabaseCursorTest {
     public void testCursor1() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
 
         int dataColumn = c.getColumnIndexOrThrow("data");
 
@@ -229,7 +229,7 @@ public class DatabaseCursorTest {
     public void testCursor2() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.query("SELECT * FROM test WHERE _id > 1000");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id > 1000");
         assertEquals(0, c.getCount());
         assertTrue(c.isBeforeFirst());
 
@@ -270,7 +270,7 @@ public class DatabaseCursorTest {
         sql.append("');");
         mDatabase.execSQL(sql.toString());
 
-        Cursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
         assertNotNull(c);
         assertEquals(1, c.getCount());
 
@@ -294,7 +294,7 @@ public class DatabaseCursorTest {
         }
         mDatabase.execSQL("COMMIT;");
 
-        Cursor c = mDatabase.query("SELECT data FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT data FROM test");
         assertNotNull(c);
 
         int i = 0;
@@ -331,7 +331,7 @@ public class DatabaseCursorTest {
         }
         mDatabase.execSQL("COMMIT;");
 
-        Cursor c = mDatabase.query("SELECT data FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT data FROM test");
         assertNotNull(c);
 
         int i = 0;
@@ -369,7 +369,7 @@ public class DatabaseCursorTest {
         }
         mDatabase.execSQL("COMMIT;");
 
-        Cursor c = mDatabase.query("SELECT txt, data FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT txt, data FROM test");
         assertNotNull(c);
 
         int i = 0;
@@ -388,7 +388,7 @@ public class DatabaseCursorTest {
     public void testRequery() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.rawQuery("SELECT * FROM test", null);
+        SQLiteCursor c = mDatabase.rawQuery("SELECT * FROM test", null);
         assertNotNull(c);
         assertEquals(3, c.getCount());
         c.deactivate();
@@ -402,7 +402,7 @@ public class DatabaseCursorTest {
     public void testRequeryWithSelection() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.rawQuery("SELECT data FROM test WHERE data = '" + sString1 + "'",
+        SQLiteCursor c = mDatabase.rawQuery("SELECT data FROM test WHERE data = '" + sString1 + "'",
                 null);
         assertNotNull(c);
         assertEquals(1, c.getCount());
@@ -421,7 +421,7 @@ public class DatabaseCursorTest {
     public void testRequeryWithSelectionArgs() {
         populateDefaultTable();
 
-        Cursor c = mDatabase.rawQuery("SELECT data FROM test WHERE data = ?",
+        SQLiteCursor c = mDatabase.rawQuery("SELECT data FROM test WHERE data = ?",
                 new String[]{sString1});
         assertNotNull(c);
         assertEquals(1, c.getCount());
@@ -435,46 +435,6 @@ public class DatabaseCursorTest {
         c.close();
     }
 
-    @MediumTest
-    @Test
-    public void testRequeryWithAlteredSelectionArgs() {
-        // Test the ability of a subclass of SQLiteCursor to change its query arguments.
-        populateDefaultTable();
-
-        SQLiteDatabase.CursorFactory factory = new SQLiteDatabase.CursorFactory() {
-            public Cursor newCursor(
-                SQLiteDatabase db, SQLiteCursorDriver masterQuery, String editTable,
-                SQLiteQuery query) {
-                return new SQLiteCursor(masterQuery, editTable, query) {
-                    @Override
-                    public boolean requery() {
-                        setSelectionArguments(new String[]{"2"});
-                        return super.requery();
-                    }
-                };
-            }
-        };
-        Cursor c = mDatabase.rawQueryWithFactory(
-                factory, "SELECT data FROM test WHERE _id <= ?", new String[]{"1"},
-                null);
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        assertTrue(c.moveToFirst());
-        assertEquals(sString1, c.getString(0));
-
-        // Our hacked requery() changes the query arguments in the cursor.
-        c.requery();
-
-        assertEquals(2, c.getCount());
-        assertTrue(c.moveToFirst());
-        assertEquals(sString1, c.getString(0));
-        assertTrue(c.moveToNext());
-        assertEquals(sString2, c.getString(0));
-
-        // Test that setting query args on a deactivated cursor also works.
-        c.deactivate();
-        c.requery();
-    }
     /**
      * sometimes CursorWindow creation fails due to non-availability of memory create
      * another CursorWindow object. One of the scenarios of its occurrence is when
@@ -487,11 +447,11 @@ public class DatabaseCursorTest {
         mDatabase.execSQL("CREATE TABLE test (_id INTEGER PRIMARY KEY, data TEXT);");
         mDatabase.execSQL("INSERT INTO test values(1, 'test');");
         int N = 1024;
-        ArrayList<Cursor> cursorList = new ArrayList<>();
+        ArrayList<SQLiteCursor> cursorList = new ArrayList<>();
         // open many cursors until a failure occurs
         for (int i = 0; i < N; i++) {
             try {
-                Cursor cursor = mDatabase.rawQuery("select * from test", null);
+                SQLiteCursor cursor = mDatabase.rawQuery("select * from test", null);
                 cursor.getCount();
                 cursorList.add(cursor);
             } catch (CursorWindowAllocationException e) {
@@ -503,7 +463,7 @@ public class DatabaseCursorTest {
                 break;
             }
         }
-        for (Cursor c : cursorList) {
+        for (SQLiteCursor c : cursorList) {
             c.close();
         }
     }
