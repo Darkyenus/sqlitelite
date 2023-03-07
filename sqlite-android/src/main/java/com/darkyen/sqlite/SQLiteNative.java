@@ -8,10 +8,6 @@ public final class SQLiteNative {
     public static native long nativePrepareStatement(long connectionPtr, String sql);
     public static native void nativeFinalizeStatement(long connectionPtr, long statementPtr);
     public static native int nativeGetParameterCount(long connectionPtr, long statementPtr);
-    public static native boolean nativeIsReadOnly(long connectionPtr, long statementPtr);
-    public static native int nativeGetColumnCount(long connectionPtr, long statementPtr);
-    public static native String nativeGetColumnName(long connectionPtr, long statementPtr,
-                                                     int index);
     public static native void nativeBindNull(long connectionPtr, long statementPtr,
                                               int index);
     public static native void nativeBindLong(long connectionPtr, long statementPtr,
@@ -25,6 +21,7 @@ public final class SQLiteNative {
     public static native void nativeResetStatementAndClearBindings(
             long connectionPtr, long statementPtr);
     public static native void nativeExecute(long connectionPtr, long statementPtr);
+    public static native String nativeExecutePragma(long connectionPtr, String sql);
     public static native long nativeExecuteForLong(long connectionPtr, long statementPtr);
     public static native String nativeExecuteForString(long connectionPtr, long statementPtr);
     public static native int nativeExecuteForChangedRowCount(long connectionPtr, long statementPtr);

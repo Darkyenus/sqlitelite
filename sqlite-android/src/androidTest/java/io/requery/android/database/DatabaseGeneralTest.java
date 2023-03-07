@@ -32,7 +32,7 @@ import androidx.test.filters.SmallTest;
 import androidx.test.filters.Suppress;
 import io.requery.android.database.sqlite.SQLiteCursor;
 import io.requery.android.database.sqlite.SQLiteDatabase;
-import io.requery.android.database.sqlite.SQLiteProgram;
+import io.requery.android.database.sqlite.SQLitePreparedStatement;
 import junit.framework.Assert;
 import org.junit.After;
 import org.junit.Before;
@@ -880,7 +880,7 @@ public class DatabaseGeneralTest {
      * first column of the first row.
      */
     public static long longForQuery(SQLiteDatabase db, String query, String[] selectionArgs) {
-        try (SQLiteProgram prog = db.compileStatement(query)) {
+        try (SQLitePreparedStatement prog = db.compileStatement(query)) {
             return longForQuery(prog, selectionArgs);
         }
     }
@@ -889,7 +889,7 @@ public class DatabaseGeneralTest {
      * Utility method to run the pre-compiled query and return the value in the
      * first column of the first row.
      */
-    public static long longForQuery(SQLiteProgram prog, String[] selectionArgs) {
+    public static long longForQuery(SQLitePreparedStatement prog, String[] selectionArgs) {
         prog.bindAllArgsAsStrings(selectionArgs);
         return prog.simpleQueryForLong();
     }
@@ -899,7 +899,7 @@ public class DatabaseGeneralTest {
      * first column of the first row.
      */
     public static String stringForQuery(SQLiteDatabase db, String query, String[] selectionArgs) {
-        try (SQLiteProgram prog = db.compileStatement(query)) {
+        try (SQLitePreparedStatement prog = db.compileStatement(query)) {
             return stringForQuery(prog, selectionArgs);
         }
     }
@@ -908,7 +908,7 @@ public class DatabaseGeneralTest {
      * Utility method to run the pre-compiled query and return the value in the
      * first column of the first row.
      */
-    public static String stringForQuery(SQLiteProgram prog, String[] selectionArgs) {
+    public static String stringForQuery(SQLitePreparedStatement prog, String[] selectionArgs) {
         prog.bindAllArgsAsStrings(selectionArgs);
         return prog.simpleQueryForString();
     }

@@ -18,15 +18,27 @@
 package io.requery.android.database.sqlite;
 
 import android.database.SQLException;
+import android.database.sqlite.SQLiteBindOrColumnIndexOutOfRangeException;
 import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteDoneException;
 import android.database.sqlite.SQLiteException;
 import android.os.CancellationSignal;
 import android.os.OperationCanceledException;
 import android.util.Log;
+import com.darkyen.sqlite.SQLiteNative;
 import io.requery.android.database.CursorWindow;
 
 import java.util.Arrays;
+
+import static com.darkyen.sqlite.SQLiteNative.nativeBindBlob;
+import static com.darkyen.sqlite.SQLiteNative.nativeBindDouble;
+import static com.darkyen.sqlite.SQLiteNative.nativeBindLong;
+import static com.darkyen.sqlite.SQLiteNative.nativeBindNull;
+import static com.darkyen.sqlite.SQLiteNative.nativeBindString;
+import static com.darkyen.sqlite.SQLiteNative.nativeExecuteForCursorWindow;
+import static com.darkyen.sqlite.SQLiteNative.nativeFinalizeStatement;
+import static com.darkyen.sqlite.SQLiteNative.nativeGetParameterCount;
+import static com.darkyen.sqlite.SQLiteNative.nativePrepareStatement;
 
 /**
  * A base class for compiled SQLite programs.
@@ -35,8 +47,8 @@ import java.util.Arrays;
  * </p>
  */
 @SuppressWarnings("unused")
-public final class SQLiteProgram extends SQLiteClosable {
-    private static final String TAG = "SQLiteProgram";
+public final class SQLitePreparedStatement extends SQLiteClosable {
+    private static final String TAG = "SQLitePreparedStatement";
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
     private final SQLiteDatabase mDatabase;
@@ -46,26 +58,28 @@ public final class SQLiteProgram extends SQLiteClosable {
 
     private final CancellationSignal mCancellationSignal;
 
-    SQLiteProgram(SQLiteDatabase db, String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
+    final long statementPtr;
+
+    SQLitePreparedStatement(SQLiteDatabase db, String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
+        if (sql == null) {
+            throw new IllegalArgumentException("sql must not be null.");
+        }
+
         mDatabase = db;
         mSql = sql.trim();
         mCancellationSignal = cancellationSignal;
 
-        int n = SQLiteStatementType.getSqlStatementType(mSql);
-        switch (n) {
-            case SQLiteStatementType.STATEMENT_BEGIN:
-            case SQLiteStatementType.STATEMENT_COMMIT:
-            case SQLiteStatementType.STATEMENT_ABORT:
-                boolean mReadOnly = false;
-                mNumParameters = 0;
-                break;
+        final long connectionPtr = db.mSession.mConnection.mConnectionPtr;
+        statementPtr = nativePrepareStatement(connectionPtr, sql);
 
-            default:
-                boolean assumeReadOnly = (n == SQLiteStatementType.STATEMENT_SELECT);
-                SQLiteStatementInfo info = new SQLiteStatementInfo();
-                db.mSession.prepare(mSql, cancellationSignal, info);
-                mNumParameters = info.numParameters;
-                break;
+        boolean ok = false;
+        try {
+            mNumParameters = nativeGetParameterCount(connectionPtr, statementPtr);
+            ok = true;
+        } finally {
+            if (!ok) {
+                nativeFinalizeStatement(connectionPtr, statementPtr);
+            }
         }
 
         if (bindArgs != null && bindArgs.length > mNumParameters) {
@@ -84,15 +98,50 @@ public final class SQLiteProgram extends SQLiteClosable {
         }
     }
 
-    final SQLiteDatabase getDatabase() {
+    void bindArguments(Object[] bindArgs) {
+        final long connectionPtr = this.mDatabase.mSession.mConnection.mConnectionPtr;
+        final int count = bindArgs != null ? bindArgs.length : 0;
+        if (count != mNumParameters) {
+            String message = "Expected " + mNumParameters + " bind arguments but "
+                    + count + " were provided.";
+            throw new SQLiteBindOrColumnIndexOutOfRangeException(message);
+        }
+        if (count == 0) {
+            return;
+        }
+
+        final long statementPtr = this.statementPtr;
+        for (int i = 0; i < count; i++) {
+            final Object arg = bindArgs[i];
+
+            if (arg == null) {
+                nativeBindNull(connectionPtr, statementPtr, i + 1);
+            } else if (arg instanceof byte[]) {
+                nativeBindBlob(connectionPtr, statementPtr, i + 1, (byte[])arg);
+            } else if (arg instanceof Float || arg instanceof Double) {
+                nativeBindDouble(connectionPtr, statementPtr, i + 1, ((Number)arg).doubleValue());
+            } else if (arg instanceof Long || arg instanceof Integer
+                    || arg instanceof Short || arg instanceof Byte) {
+                nativeBindLong(connectionPtr, statementPtr, i + 1, ((Number)arg).longValue());
+            } else if (arg instanceof Boolean) {
+                // Provide compatibility with legacy applications which may pass
+                // Boolean values in bind args.
+                nativeBindLong(connectionPtr, statementPtr, i + 1, (Boolean) arg ? 1 : 0);
+            } else {
+                nativeBindString(connectionPtr, statementPtr, i + 1, arg.toString());
+            }
+        }
+    }
+
+    SQLiteDatabase getDatabase() {
         return mDatabase;
     }
 
-    final String getSql() {
+    String getSql() {
         return mSql;
     }
 
-    final Object[] getBindArgs() {
+    Object[] getBindArgs() {
         return mBindArgs;
     }
 
@@ -157,7 +206,7 @@ public final class SQLiteProgram extends SQLiteClosable {
     }
 
     /**
-     * Binds the given Object to the given SQLiteProgram using the proper
+     * Binds the given Object to the given SQLitePreparedStatement using the proper
      * typing. For example, bind numbers as longs/doubles, and everything else
      * as a string by call toString() on it.
      *
@@ -241,7 +290,7 @@ public final class SQLiteProgram extends SQLiteClosable {
     }
 
     /**
-     * Execute this SQL statement, if the the number of rows affected by execution of this SQL
+     * Execute this SQL statement, if the number of rows affected by execution of this SQL
      * statement is of any importance to the caller - for example, UPDATE / DELETE SQL statements.
      *
      * @return the number of rows affected by this SQL statement execution.
@@ -342,13 +391,26 @@ public final class SQLiteProgram extends SQLiteClosable {
      * @throws OperationCanceledException if the operation was canceled.
      */
     int fillWindow(CursorWindow window, int startPos, int requiredPos, boolean countAllRows) {
+        final long mConnectionPtr = mDatabase.mSession.mConnection.mConnectionPtr;
         acquireReference();
         try {
             window.acquireReference();
             try {
-                return mDatabase.mSession.executeForCursorWindow(getSql(), getBindArgs(),
-                        window, startPos, requiredPos, countAllRows,
-                        mCancellationSignal);
+                SQLiteNative.nativeResetStatementAndClearBindings(mConnectionPtr, statementPtr);
+                bindArguments(mBindArgs);
+
+                    mDatabase.mSession.mConnection.attachCancellationSignal(mCancellationSignal);
+                    try {
+                        final long result = nativeExecuteForCursorWindow(
+                                mDatabase.mSession.mConnection.mConnectionPtr, statementPtr, window.mWindowPtr,
+                                startPos, requiredPos, countAllRows);
+                        int actualPos = (int)(result >> 32);
+                        int countedRows = (int)result;
+                        window.setStartPosition(actualPos);
+                        return countedRows;
+                    } finally {
+                        mDatabase.mSession.mConnection.detachCancellationSignal(mCancellationSignal);
+                    }
             } catch (SQLiteDatabaseCorruptException ex) {
                 mDatabase.onCorruption();
                 throw ex;

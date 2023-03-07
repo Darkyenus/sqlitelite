@@ -36,10 +36,7 @@ public class SQLiteCursor implements Closeable {
     static final int NO_COUNT = -1;
 
     /** The query object for the cursor */
-    private final SQLiteProgram mQuery;
-
-    /** The compiled query this cursor came from */
-    private final SQLiteCursorDriver mDriver;
+    private final SQLitePreparedStatement mQuery;
 
     /** The number of rows in the cursor */
     private int mCount = NO_COUNT;
@@ -68,14 +65,13 @@ public class SQLiteCursor implements Closeable {
      *
      * @param editTable not used, present only for compatibility with
      *                  {@link android.database.sqlite.SQLiteCursor}
-     * @param query     the {@link SQLiteProgram} object associated with this cursor object.
+     * @param query     the {@link SQLitePreparedStatement} object associated with this cursor object.
      */
     @SuppressWarnings("unused")
-    public SQLiteCursor(SQLiteCursorDriver driver, String editTable, SQLiteProgram query) {
+    public SQLiteCursor(String editTable, SQLitePreparedStatement query) {
         if (query == null) {
             throw new IllegalArgumentException("query object cannot be null");
         }
-        mDriver = driver;
         mQuery = query;
         mCloseGuard = CloseGuard.get();
     }
@@ -125,17 +121,15 @@ public class SQLiteCursor implements Closeable {
     }
 
     public void deactivate() {
-        onDeactivateOrClose();
-        mDriver.cursorDeactivated();
+        closeWindow();
     }
 
     @Override
     public void close() {
         mClosed = true;
-        onDeactivateOrClose();
+        closeWindow();
         synchronized (this) {
             mQuery.close();
-            mDriver.cursorClosed();
         }
     }
 
@@ -154,8 +148,6 @@ public class SQLiteCursor implements Closeable {
             }
             mPos = -1;
             mCount = NO_COUNT;
-
-            mDriver.cursorRequeried(this);
         }
 
         try {
@@ -281,12 +273,6 @@ public class SQLiteCursor implements Closeable {
             mWindow.clear();
         }
     }
-
-    protected void onDeactivateOrClose() {
-        closeWindow();
-    }
-
-
 
     public boolean isClosed() {
         return mClosed;

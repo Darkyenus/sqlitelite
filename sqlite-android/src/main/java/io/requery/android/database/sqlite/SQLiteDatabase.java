@@ -26,7 +26,6 @@ import android.content.ContentValues;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteException;
-import android.database.sqlite.SQLiteTransactionListener;
 import android.os.CancellationSignal;
 import android.os.Looper;
 import android.os.OperationCanceledException;
@@ -34,8 +33,6 @@ import android.text.TextUtils;
 import android.util.EventLog;
 import android.util.Log;
 import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import io.requery.android.database.DatabaseErrorHandler;
 import io.requery.android.database.DefaultDatabaseErrorHandler;
 
@@ -672,21 +669,21 @@ public final class SQLiteDatabase extends SQLiteClosable {
     /**
      * Compiles an SQL statement into a reusable pre-compiled statement object.
      * The parameters are identical to {@link #execSQL(String)}. You may put ?s in the
-     * statement and fill in those values with {@link SQLiteProgram#bindString}
-     * and {@link SQLiteProgram#bindLong} each time you want to run the
+     * statement and fill in those values with {@link SQLitePreparedStatement#bindString}
+     * and {@link SQLitePreparedStatement#bindLong} each time you want to run the
      * statement. Statements may not return result sets larger than 1x1.
      *<p>
-     * No two threads should be using the same {@link SQLiteProgram} at the same time.
+     * No two threads should be using the same {@link SQLitePreparedStatement} at the same time.
      *
      * @param sql The raw SQL statement, may contain ? for unknown values to be
      *            bound later.
-     * @return A pre-compiled {@link SQLiteProgram} object. Note that
-     * {@link SQLiteProgram}s are not synchronized, see the documentation for more details.
+     * @return A pre-compiled {@link SQLitePreparedStatement} object. Note that
+     * {@link SQLitePreparedStatement}s are not synchronized, see the documentation for more details.
      */
-    public SQLiteProgram compileStatement(String sql) throws SQLException {
+    public SQLitePreparedStatement compileStatement(String sql) throws SQLException {
         acquireReference();
         try {
-            return new SQLiteProgram(this, sql, null, null);
+            return new SQLitePreparedStatement(this, sql, null, null);
         } finally {
             releaseReference();
         }
@@ -778,9 +775,15 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public SQLiteCursor rawQueryWithFactory(String sql, Object[] selectionArgs, String editTable, CancellationSignal cancellationSignal) {
         acquireReference();
         try {
-            SQLiteCursorDriver driver = new SQLiteDirectCursorDriver(this, sql, editTable,
-                    cancellationSignal);
-            return driver.query(selectionArgs);
+            SQLitePreparedStatement query = new SQLitePreparedStatement(this, sql, selectionArgs, cancellationSignal);
+            final SQLiteCursor cursor;
+            try {
+                cursor = new SQLiteCursor(editTable, query);
+            } catch (Exception ex) {
+                query.close();
+                throw ex;
+            }
+            return cursor;
         } finally {
             releaseReference();
         }
@@ -951,7 +954,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
             }
             sql.append(')');
 
-            SQLiteProgram statement = new SQLiteProgram(this, sql.toString(), bindArgs, null);
+            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null);
             try {
                 return statement.executeInsert();
             } finally {
@@ -978,7 +981,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public int delete(String table, String whereClause, String[] whereArgs) {
         acquireReference();
         try {
-            SQLiteProgram statement =  new SQLiteProgram(this, "DELETE FROM " + table +
+            SQLitePreparedStatement statement =  new SQLitePreparedStatement(this, "DELETE FROM " + table +
                     (!TextUtils.isEmpty(whereClause) ? " WHERE " + whereClause : ""), whereArgs, null);
             try {
                 return statement.executeUpdateDelete();
@@ -1006,7 +1009,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public int delete(String table, String whereClause, Object[] whereArgs) {
         acquireReference();
         try {
-            SQLiteProgram statement =  new SQLiteProgram(this, "DELETE FROM " + table +
+            SQLitePreparedStatement statement =  new SQLitePreparedStatement(this, "DELETE FROM " + table +
                     (!TextUtils.isEmpty(whereClause) ? " WHERE " + whereClause : ""), whereArgs, null);
             try {
                 return statement.executeUpdateDelete();
@@ -1084,7 +1087,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
                 sql.append(whereClause);
             }
 
-            SQLiteProgram statement = new SQLiteProgram(this, sql.toString(), bindArgs, null);
+            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null);
             try {
                 return statement.executeUpdateDelete();
             } finally {
@@ -1144,7 +1147,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
                 sql.append(whereClause);
             }
 
-            SQLiteProgram statement = new SQLiteProgram(this, sql.toString(), bindArgs, null);
+            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null);
             try {
                 return statement.executeUpdateDelete();
             } finally {
@@ -1219,7 +1222,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     private int executeSql(String sql, Object[] bindArgs) throws SQLException {
         acquireReference();
         try {
-            SQLiteProgram statement = new SQLiteProgram(this, sql, bindArgs, null);
+            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql, bindArgs, null);
             try {
                 return statement.executeUpdateDelete();
             } finally {
@@ -1228,20 +1231,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         } finally {
             releaseReference();
         }
-    }
-
-    /**
-     * Verifies that a SQL SELECT statement is valid by compiling it.
-     * If the SQL statement is not valid, this method will throw a {@link SQLiteException}.
-     *
-     * @param sql SQL to be validated
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     * If the operation is canceled, then {@link OperationCanceledException} will be thrown
-     * when the query is executed.
-     * @throws SQLiteException if {@code sql} is invalid
-     */
-    public void validateSql(@NonNull String sql, @Nullable CancellationSignal cancellationSignal) {
-        mSession.prepare(sql, cancellationSignal, null);
     }
 
     /**
@@ -1328,7 +1317,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public boolean isDatabaseIntegrityOk() {
         acquireReference();
         try {
-            SQLiteProgram prog = null;
+            SQLitePreparedStatement prog = null;
             try {
                 prog = compileStatement("PRAGMA integrity_check(1);");
                 String rslt = prog.simpleQueryForString();
@@ -1402,7 +1391,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * first column of the first row.
      */
     public long longForQuery(String query, String[] selectionArgs) {
-        SQLiteProgram prog = compileStatement(query);
+        SQLitePreparedStatement prog = compileStatement(query);
         try {
             return longForQuery(prog, selectionArgs);
         } finally {
@@ -1414,7 +1403,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * Utility method to run the pre-compiled query and return the value in the
      * first column of the first row.
      */
-    private static long longForQuery(SQLiteProgram prog, String[] selectionArgs) {
+    private static long longForQuery(SQLitePreparedStatement prog, String[] selectionArgs) {
         prog.bindAllArgsAsStrings(selectionArgs);
         return prog.simpleQueryForLong();
     }
@@ -1424,7 +1413,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * first column of the first row.
      */
     public String stringForQuery(String query, String[] selectionArgs) {
-        SQLiteProgram prog = compileStatement(query);
+        SQLitePreparedStatement prog = compileStatement(query);
         try {
             return stringForQuery(prog, selectionArgs);
         } finally {
@@ -1436,7 +1425,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * Utility method to run the pre-compiled query and return the value in the
      * first column of the first row.
      */
-    public static String stringForQuery(SQLiteProgram prog, String[] selectionArgs) {
+    public static String stringForQuery(SQLitePreparedStatement prog, String[] selectionArgs) {
         prog.bindAllArgsAsStrings(selectionArgs);
         return prog.simpleQueryForString();
     }

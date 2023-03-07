@@ -126,7 +126,7 @@ static jlong nativeOpen(JNIEnv* env, jclass clazz, jstring pathStr, jint openFla
     const char* labelChars = env->GetStringUTFChars(labelStr, NULL);
 
     sqlite3* db;
-    int err = sqlite3_open_v2(pathChars, &db, openFlags, NULL);
+    int err = sqlite3_open_v2(pathChars, &db, openFlags | SQLITE_OPEN_EXRESCODE, NULL);
     if (err != SQLITE_OK) {
         env->ReleaseStringUTFChars(pathStr, pathChars);
         env->ReleaseStringUTFChars(labelStr, labelChars);
@@ -179,10 +179,7 @@ static void nativeClose(JNIEnv* env, jclass clazz, jlong connectionPtr) {
     }
 }
 
-static jlong nativePrepareStatement(JNIEnv* env, jclass clazz, jlong connectionPtr,
-        jstring sqlString) {
-    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
-
+static sqlite3_stmt* prepareStatement(JNIEnv* env, SQLiteConnection* connection, jstring sqlString) {
     jsize sqlLength = env->GetStringLength(sqlString);
     const jchar* sql = env->GetStringCritical(sqlString, NULL);
     sqlite3_stmt* statement;
@@ -190,23 +187,32 @@ static jlong nativePrepareStatement(JNIEnv* env, jclass clazz, jlong connectionP
             sql, sqlLength * sizeof(jchar), &statement, NULL);
     env->ReleaseStringCritical(sqlString, sql);
 
-    if (err != SQLITE_OK) {
-        // Error messages like 'near ")": syntax error' are not
-        // always helpful enough, so construct an error string that
-        // includes the query itself.
-        const char *query = env->GetStringUTFChars(sqlString, NULL);
-        char *message = (char*) malloc(strlen(query) + 50);
-        if (message) {
-            strcpy(message, ", while compiling: "); // less than 50 chars
-            strcat(message, query);
-        }
-        env->ReleaseStringUTFChars(sqlString, query);
-        throw_sqlite3_exception(env, connection->db, message);
-        free(message);
-        return 0;
+    if (err == SQLITE_OK) {
+        return statement;
     }
 
-    ALOGV("Prepared statement %p on connection %p", statement, connection->db);
+    // Error messages like 'near ")": syntax error' are not
+    // always helpful enough, so construct an error string that
+    // includes the query itself.
+    const char *query = env->GetStringUTFChars(sqlString, NULL);
+    char *message = (char*) malloc(strlen(query) + 50);
+    if (message) {
+        strcpy(message, ", while compiling: "); // less than 50 chars
+        strcat(message, query);
+    }
+    env->ReleaseStringUTFChars(sqlString, query);
+    throw_sqlite3_exception(env, connection->db, message);
+    free(message);
+    return NULL;
+}
+
+static jlong nativePrepareStatement(JNIEnv* env, jclass clazz, jlong connectionPtr, jstring sqlString) {
+    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
+    sqlite3_stmt* statement = prepareStatement(env, connection, sqlString);
+
+    if (statement != 0) {
+        ALOGV("Prepared statement %p on connection %p", statement, connection->db);
+    }
     return reinterpret_cast<jlong>(statement);
 }
 
@@ -228,38 +234,6 @@ static jint nativeGetParameterCount(JNIEnv* env, jclass clazz, jlong connectionP
     sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
 
     return sqlite3_bind_parameter_count(statement);
-}
-
-static jboolean nativeIsReadOnly(JNIEnv* env, jclass clazz, jlong connectionPtr,
-        jlong statementPtr) {
-    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
-    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
-
-    return sqlite3_stmt_readonly(statement) != 0;
-}
-
-static jint nativeGetColumnCount(JNIEnv* env, jclass clazz, jlong connectionPtr,
-        jlong statementPtr) {
-    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
-    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
-
-    return sqlite3_column_count(statement);
-}
-
-static jstring nativeGetColumnName(JNIEnv* env, jclass clazz, jlong connectionPtr,
-        jlong statementPtr, jint index) {
-    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
-    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
-
-    const jchar* name = static_cast<const jchar*>(sqlite3_column_name16(statement, index));
-    if (name) {
-        size_t length = 0;
-        while (name[length]) {
-            length += 1;
-        }
-        return env->NewString(name, length);
-    }
-    return NULL;
 }
 
 static void nativeBindNull(JNIEnv* env, jclass clazz, jlong connectionPtr,
@@ -349,12 +323,48 @@ static int executeNonQuery(JNIEnv* env, SQLiteConnection* connection, sqlite3_st
     return err;
 }
 
-static void nativeExecute(JNIEnv* env, jclass clazz, jlong connectionPtr,
-        jlong statementPtr) {
+static void nativeExecute(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
     SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
     sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
 
     executeNonQuery(env, connection, statement);
+}
+
+static jstring nativeExecutePragma(JNIEnv* env, jclass clazz, jlong connectionPtr, jstring sqlString) {
+    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
+    sqlite3_stmt* statement = prepareStatement(env, connection, sqlString);
+    if (statement == 0) return NULL;
+
+    int err = sqlite3_step(statement);
+    jstring result = NULL;
+    if (err == SQLITE_ROW) {
+        int columns = sqlite3_column_count(statement);
+        size_t totalLength = 0;
+        for (int c = 0; c < columns; c++) {
+            // Force conversion
+            const jchar* text = static_cast<const jchar*>(sqlite3_column_text16(statement, c));
+            totalLength += sqlite3_column_bytes16(statement, c) / sizeof(jchar);
+        }
+        if (totalLength == 0) {
+            result = env->NewString(NULL, 0);
+        } else {
+            jchar* buffer = (jchar*) malloc(totalLength * sizeof(jchar));
+            size_t offset = 0;
+            for (int c = 0; c < columns; c++) {
+                const jchar* text = static_cast<const jchar*>(sqlite3_column_text16(statement, 0));
+                size_t sizeBytes = sqlite3_column_bytes16(statement, c);
+                memcpy(buffer + offset, text, sizeBytes);
+                offset += sizeBytes / sizeof(jchar);
+            }
+            result = env->NewString(buffer, totalLength);
+            free(buffer);
+        }
+    } else if (err != SQLITE_DONE) {
+        throw_sqlite3_exception(env, connection->db);
+    }
+
+    sqlite3_finalize(statement);
+    return result;
 }
 
 static jint nativeExecuteForChangedRowCount(JNIEnv* env, jclass clazz,
@@ -620,12 +630,6 @@ static JNINativeMethod sMethods[] =
             (void*)nativeFinalizeStatement },
     { "nativeGetParameterCount", "(JJ)I",
             (void*)nativeGetParameterCount },
-    { "nativeIsReadOnly", "(JJ)Z",
-            (void*)nativeIsReadOnly },
-    { "nativeGetColumnCount", "(JJ)I",
-            (void*)nativeGetColumnCount },
-    { "nativeGetColumnName", "(JJI)Ljava/lang/String;",
-            (void*)nativeGetColumnName },
     { "nativeBindNull", "(JJI)V",
             (void*)nativeBindNull },
     { "nativeBindLong", "(JJIJ)V",
@@ -640,6 +644,8 @@ static JNINativeMethod sMethods[] =
             (void*)nativeResetStatementAndClearBindings },
     { "nativeExecute", "(JJ)V",
             (void*)nativeExecute },
+    { "nativeExecutePragma", "(JLjava/lang/String;)Ljava/lang/String;",
+            (void*)nativeExecutePragma },
     { "nativeExecuteForLong", "(JJ)J",
             (void*)nativeExecuteForLong },
     { "nativeExecuteForString", "(JJ)Ljava/lang/String;",

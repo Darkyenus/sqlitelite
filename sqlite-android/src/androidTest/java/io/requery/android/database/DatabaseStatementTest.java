@@ -25,7 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.MediumTest;
 import io.requery.android.database.sqlite.SQLiteCursor;
 import io.requery.android.database.sqlite.SQLiteDatabase;
-import io.requery.android.database.sqlite.SQLiteProgram;
+import io.requery.android.database.sqlite.SQLitePreparedStatement;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -85,7 +85,7 @@ public class DatabaseStatementTest {
     @Test
     public void testExecuteStatement() {
         populateDefaultTable();
-        SQLiteProgram statement = mDatabase.compileStatement("DELETE FROM test");
+        SQLitePreparedStatement statement = mDatabase.compileStatement("DELETE FROM test");
         statement.execute();
 
         SQLiteCursor c = mDatabase.query("SELECT * FROM test");
@@ -99,9 +99,9 @@ public class DatabaseStatementTest {
     public void testSimpleQuery() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER NOT NULL, str TEXT NOT NULL);");
         mDatabase.execSQL("INSERT INTO test VALUES (1234, 'hello');");
-        SQLiteProgram statement1 =
+        SQLitePreparedStatement statement1 =
                 mDatabase.compileStatement("SELECT num FROM test WHERE str = ?");
-        SQLiteProgram statement2 =
+        SQLitePreparedStatement statement2 =
                 mDatabase.compileStatement("SELECT str FROM test WHERE num = ?");
 
         try {
@@ -136,7 +136,7 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementLongBinding() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER);");
-        SQLiteProgram statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
+        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
 
         for (int i = 0; i < 10; i++) {
             statement.bindLong(1, i);
@@ -158,7 +158,7 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementStringBinding() {
         mDatabase.execSQL("CREATE TABLE test (num TEXT);");
-        SQLiteProgram statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
+        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
 
         for (long i = 0; i < 10; i++) {
             statement.bindString(1, Long.toHexString(i));
@@ -180,7 +180,7 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementClearBindings() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER);");
-        SQLiteProgram statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
+        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
 
         for (long i = 0; i < 10; i++) {
             statement.bindLong(1, i);
@@ -227,7 +227,7 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementMultipleBindings() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER, str TEXT);");
-        SQLiteProgram statement =
+        SQLitePreparedStatement statement =
                 mDatabase.compileStatement("INSERT INTO test (num, str) VALUES (?, ?)");
 
         for (long i = 0; i < 10; i++) {
@@ -253,9 +253,9 @@ public class DatabaseStatementTest {
 
     private static class StatementTestThread extends Thread {
         private SQLiteDatabase mDatabase;
-        private SQLiteProgram mStatement;
+        private SQLitePreparedStatement mStatement;
 
-        private StatementTestThread(SQLiteDatabase db, SQLiteProgram statement) {
+        private StatementTestThread(SQLiteDatabase db, SQLitePreparedStatement statement) {
             super();
             mDatabase = db;
             mStatement = statement;
@@ -291,7 +291,7 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementMultiThreaded() throws Exception {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER, str TEXT);");
-        SQLiteProgram statement =
+        SQLitePreparedStatement statement =
                 mDatabase.compileStatement("INSERT INTO test (num, str) VALUES (?, ?)");
 
         StatementTestThread thread = new StatementTestThread(mDatabase, statement);
@@ -307,7 +307,7 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementConstraint() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER NOT NULL);");
-        SQLiteProgram statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
+        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
 
         // Try to insert NULL, which violates the constraint
         try {

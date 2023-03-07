@@ -25,7 +25,6 @@ import android.annotation.SuppressLint;
 import android.database.sqlite.SQLiteException;
 import android.os.CancellationSignal;
 import android.os.OperationCanceledException;
-import io.requery.android.database.CursorWindow;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -153,7 +152,7 @@ import org.jetbrains.annotations.NotNull;
 @SuppressLint("Assert")
 public final class SQLiteSession {
 
-    private final SQLiteConnection mConnection;
+    final SQLiteConnection mConnection;
     private boolean inTransaction = false;
     private boolean transactionSuccessful = false;
 
@@ -211,7 +210,7 @@ public final class SQLiteSession {
      * Creates a session bound to the specified connection pool.
      */
     public SQLiteSession(@NotNull SQLiteDatabase database) {
-        mConnection = SQLiteConnection.open(database.mConfigurationLocked);
+        mConnection = SQLiteConnection.open(database, database.mConfigurationLocked);
     }
 
     /**
@@ -333,36 +332,6 @@ public final class SQLiteSession {
 
 
     /**
-     * Prepares a statement for execution but does not bind its parameters or execute it.
-     * <p>
-     * This method can be used to check for syntax errors during compilation
-     * prior to execution of the statement.  If the {@code outStatementInfo} argument
-     * is not null, the provided {@link SQLiteStatementInfo} object is populated
-     * with information about the statement.
-     * </p><p>
-     * A prepared statement makes no reference to the arguments that may eventually
-     * be bound to it, consequently it it possible to cache certain prepared statements
-     * such as SELECT or INSERT/UPDATE statements.  If the statement is cacheable,
-     * then it will be stored in the cache for later and reused if possible.
-     * </p>
-     *
-     * @param sql The SQL statement to prepare.
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     * @param outStatementInfo The {@link SQLiteStatementInfo} object to populate
-     * with information about the statement, or null if none.
-     *
-     * @throws SQLiteException if an error occurs, such as a syntax error.
-     * @throws OperationCanceledException if the operation was canceled.
-     */
-    public void prepare(String sql, CancellationSignal cancellationSignal, SQLiteStatementInfo outStatementInfo) {
-        if (cancellationSignal != null) {
-            cancellationSignal.throwIfCanceled();
-        }
-
-        mConnection.prepare(sql, outStatementInfo); // might throw
-    }
-
-    /**
      * Executes a statement that does not return a result.
      *
      * @param sql The SQL statement to execute.
@@ -443,37 +412,6 @@ public final class SQLiteSession {
      */
     public long executeForLastInsertedRowId(String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
         return mConnection.executeForLastInsertedRowId(sql, bindArgs, cancellationSignal); // might throw
-    }
-
-    /**
-     * Executes a statement and populates the specified {@link CursorWindow}
-     * with a range of results.  Returns the number of rows that were counted
-     * during query execution.
-     *
-     * @param sql The SQL statement to execute.
-     * @param bindArgs The arguments to bind, or null if none.
-     * @param window The cursor window to clear and fill.
-     * @param startPos The start position for filling the window.
-     * @param requiredPos The position of a row that MUST be in the window.
-     * If it won't fit, then the query should discard part of what it filled
-     * so that it does.  Must be greater than or equal to <code>startPos</code>.
-     * @param countAllRows True to count all rows that the query would return
-     * regagless of whether they fit in the window.
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     * @return The number of rows that were counted during query execution.  Might
-     * not be all rows in the result set unless <code>countAllRows</code> is true.
-     *
-     * @throws SQLiteException if an error occurs, such as a syntax error
-     * or invalid number of bind arguments.
-     * @throws OperationCanceledException if the operation was canceled.
-     */
-    public int executeForCursorWindow(String sql, Object[] bindArgs,
-                                      CursorWindow window, int startPos, int requiredPos,
-                                      boolean countAllRows,
-                                      CancellationSignal cancellationSignal) {
-        return mConnection.executeForCursorWindow(sql, bindArgs,
-                window, startPos, requiredPos, countAllRows,
-                cancellationSignal); // might throw
     }
 
     public void close() {
