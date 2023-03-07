@@ -219,7 +219,7 @@ public abstract class SQLiteOpenHelper {
                             db.getVersion() + " to " + mNewVersion + ": " + mName);
                 }
 
-                db.beginTransaction();
+                db.beginTransactionExclusive();
                 try {
                     if (version == 0) {
                         onCreate(db);

@@ -263,7 +263,7 @@ public class DatabaseStatementTest {
 
         @Override
         public void run() {
-            mDatabase.beginTransaction();
+            mDatabase.beginTransactionExclusive();
             for (long i = 0; i < 10; i++) {
                 mStatement.bindLong(1, i);
                 mStatement.bindString(2, Long.toHexString(i));

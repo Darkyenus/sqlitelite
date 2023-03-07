@@ -327,7 +327,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      *   }
      * </pre>
      */
-    public void beginTransaction() {
+    public void beginTransactionExclusive() {
         beginTransaction(null, SQLiteSession.TRANSACTION_MODE_EXCLUSIVE);
     }
 
@@ -351,7 +351,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      *   }
      * </pre>
      */
-    public void beginTransactionNonExclusive() {
+    public void beginTransactionImmediate() {
         beginTransaction(null, SQLiteSession.TRANSACTION_MODE_IMMEDIATE);
     }
 
@@ -368,8 +368,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @param transactionListener listener that should be notified when the transaction begins,
      * commits, or is rolled back
      */
-    public void beginTransactionWithListenerDeferred(
-            SQLiteTransactionListener transactionListener) {
+    public void beginTransactionDeferred(SQLiteTransactionListener transactionListener) {
         beginTransaction(transactionListener, SQLiteSession.TRANSACTION_MODE_DEFERRED);
     }
 
@@ -397,7 +396,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @param transactionListener listener that should be notified when the transaction begins,
      * commits, or is rolled back
      */
-    public void beginTransactionWithListener(SQLiteTransactionListener transactionListener) {
+    public void beginTransactionExclusive(SQLiteTransactionListener transactionListener) {
         beginTransaction(transactionListener, SQLiteSession.TRANSACTION_MODE_EXCLUSIVE);
     }
 
@@ -424,8 +423,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @param transactionListener listener that should be notified when the
      *            transaction begins, commits, or is rolled back
      */
-    public void beginTransactionWithListenerNonExclusive(
-            SQLiteTransactionListener transactionListener) {
+    public void beginTransactionImmediate(SQLiteTransactionListener transactionListener) {
         beginTransaction(transactionListener, SQLiteSession.TRANSACTION_MODE_IMMEDIATE);
     }
 
@@ -445,6 +443,16 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public void endTransaction() {
         acquireReference();
         try {
+            mSession.endTransaction(null);
+        } finally {
+            releaseReference();
+        }
+    }
+
+    public void commitTransaction() {
+        acquireReference();
+        try {
+            mSession.setTransactionSuccessful();
             mSession.endTransaction(null);
         } finally {
             releaseReference();

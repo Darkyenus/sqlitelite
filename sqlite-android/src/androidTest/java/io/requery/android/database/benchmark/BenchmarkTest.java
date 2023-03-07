@@ -136,7 +136,7 @@ public class BenchmarkTest {
                 Record.COLUMN_CONTENT,
                 Record.COLUMN_CREATED_TIME));
         try {
-            db.beginTransaction();
+            db.beginTransactionExclusive();
             for (int i = 0; i < count; i++) {
                 Record record = Record.create(i);
                 statement.bindString(1, record.getContent());

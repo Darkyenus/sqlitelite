@@ -641,18 +641,16 @@ public final class SQLiteSession {
         final int type = SQLiteStatementType.getSqlStatementType(sql);
         switch (type) {
             case SQLiteStatementType.STATEMENT_BEGIN:
-                beginTransaction(TRANSACTION_MODE_EXCLUSIVE, null,
-                        cancellationSignal);
-                return true;
+                throw new IllegalArgumentException("Can't execute special SQL, call appropriate method instead: "+sql);
+                //beginTransaction(TRANSACTION_MODE_EXCLUSIVE, null, cancellationSignal);
 
             case SQLiteStatementType.STATEMENT_COMMIT:
-                setTransactionSuccessful();
-                endTransaction(cancellationSignal);
-                return true;
-
+                throw new IllegalArgumentException("Can't execute special SQL, call appropriate method instead: "+sql);
+                //setTransactionSuccessful();
+                //endTransaction(cancellationSignal);
             case SQLiteStatementType.STATEMENT_ABORT:
-                endTransaction(cancellationSignal);
-                return true;
+                throw new IllegalArgumentException("Can't execute special SQL, call appropriate method instead: "+sql);
+                //endTransaction(cancellationSignal);
         }
         return false;
     }

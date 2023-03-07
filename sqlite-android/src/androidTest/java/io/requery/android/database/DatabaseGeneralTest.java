@@ -547,7 +547,7 @@ public class DatabaseGeneralTest {
 
         // Test a single-level transaction.
         setNum(0);
-        mDatabase.beginTransaction();
+        mDatabase.beginTransactionExclusive();
         setNum(1);
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
@@ -555,7 +555,7 @@ public class DatabaseGeneralTest {
 
         // Test a rolled-back transaction.
         setNum(0);
-        mDatabase.beginTransaction();
+        mDatabase.beginTransactionExclusive();
         setNum(1);
         mDatabase.endTransaction();
         checkNum(0);
@@ -566,18 +566,18 @@ public class DatabaseGeneralTest {
         // We should get an error if a set a non-existent transaction as clean.
         assertThrowsIllegalState(() -> mDatabase.setTransactionSuccessful());
 
-        mDatabase.beginTransaction();
+        mDatabase.beginTransactionExclusive();
         mDatabase.setTransactionSuccessful();
         // We should get an error if we mark a transaction as clean twice.
         assertThrowsIllegalState(() -> mDatabase.setTransactionSuccessful());
         // We should get an error if we begin a transaction after marking the parent as clean.
-        assertThrowsIllegalState(() -> mDatabase.beginTransaction());
+        assertThrowsIllegalState(() -> mDatabase.beginTransactionExclusive());
         mDatabase.endTransaction();
 
         // Test a two-level transaction.
         setNum(0);
-        mDatabase.beginTransaction();
-        mDatabase.beginTransaction();
+        mDatabase.beginTransactionExclusive();
+        mDatabase.beginTransactionExclusive();
         setNum(1);
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
@@ -587,8 +587,8 @@ public class DatabaseGeneralTest {
 
         // Test rolling back an inner transaction.
         setNum(0);
-        mDatabase.beginTransaction();
-        mDatabase.beginTransaction();
+        mDatabase.beginTransactionExclusive();
+        mDatabase.beginTransactionExclusive();
         setNum(1);
         mDatabase.endTransaction();
         mDatabase.setTransactionSuccessful();
@@ -597,8 +597,8 @@ public class DatabaseGeneralTest {
 
         // Test rolling back an outer transaction.
         setNum(0);
-        mDatabase.beginTransaction();
-        mDatabase.beginTransaction();
+        mDatabase.beginTransactionExclusive();
+        mDatabase.beginTransactionExclusive();
         setNum(1);
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();

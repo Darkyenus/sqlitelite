@@ -267,11 +267,11 @@ public class DatabaseCursorTest {
         mDatabase.execSQL("CREATE TABLE test (_id INTEGER PRIMARY KEY, data INT);");
         
         final int count = 36799; 
-        mDatabase.execSQL("BEGIN Transaction;");
+        mDatabase.beginTransactionDeferred();
         for (int i = 0; i < count; i++) {
             mDatabase.execSQL("INSERT INTO test (data) VALUES (" + i + ");");
         }
-        mDatabase.execSQL("COMMIT;");
+        mDatabase.commitTransaction();
 
         SQLiteCursor c = mDatabase.query("SELECT data FROM test");
         assertNotNull(c);
@@ -304,11 +304,11 @@ public class DatabaseCursorTest {
 
         // if cursor window size changed, adjust this value too  
         final int count = 600; // more than two fillWindow needed
-        mDatabase.execSQL("BEGIN Transaction;");
+        mDatabase.beginTransactionDeferred();
         for (int i = 0; i < count; i++) {
             mDatabase.execSQL(sql.toString());
         }
-        mDatabase.execSQL("COMMIT;");
+        mDatabase.commitTransaction();
 
         SQLiteCursor c = mDatabase.query("SELECT data FROM test");
         assertNotNull(c);
@@ -336,7 +336,7 @@ public class DatabaseCursorTest {
 
         // if cursor window size changed, adjust this value too  
         final int count = 600;
-        mDatabase.execSQL("BEGIN Transaction;");
+        mDatabase.beginTransactionDeferred();
         for (int i = 0; i < count; i++) {
             StringBuilder sql = new StringBuilder(2100);
             sql.append("INSERT INTO test (txt, data) VALUES ('");
@@ -346,7 +346,7 @@ public class DatabaseCursorTest {
             sql.append("');");
             mDatabase.execSQL(sql.toString());
         }
-        mDatabase.execSQL("COMMIT;");
+        mDatabase.commitTransaction();
 
         SQLiteCursor c = mDatabase.query("SELECT txt, data FROM test");
         assertNotNull(c);
