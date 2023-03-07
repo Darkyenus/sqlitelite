@@ -20,7 +20,6 @@ package io.requery.android.database.sqlite;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteDoneException;
-import android.os.ParcelFileDescriptor;
 
 /**
  * Represents a statement that can be executed against a database.  The statement
@@ -46,9 +45,9 @@ public final class SQLiteStatement extends SQLiteProgram {
     public void execute() {
         acquireReference();
         try {
-            getSession().execute(getSql(), getBindArgs(), null);
+            mDatabase.mSession.execute(getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
-            onCorruption();
+            mDatabase.onCorruption();
             throw ex;
         } finally {
             releaseReference();
@@ -65,10 +64,10 @@ public final class SQLiteStatement extends SQLiteProgram {
     public int executeUpdateDelete() {
         acquireReference();
         try {
-            return getSession().executeForChangedRowCount(
+            return mDatabase.mSession.executeForChangedRowCount(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
-            onCorruption();
+            mDatabase.onCorruption();
             throw ex;
         } finally {
             releaseReference();
@@ -86,10 +85,10 @@ public final class SQLiteStatement extends SQLiteProgram {
     public long executeInsert() {
         acquireReference();
         try {
-            return getSession().executeForLastInsertedRowId(
+            return mDatabase.mSession.executeForLastInsertedRowId(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
-            onCorruption();
+            mDatabase.onCorruption();
             throw ex;
         } finally {
             releaseReference();
@@ -107,10 +106,10 @@ public final class SQLiteStatement extends SQLiteProgram {
     public long simpleQueryForLong() {
         acquireReference();
         try {
-            return getSession().executeForLong(
+            return mDatabase.mSession.executeForLong(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
-            onCorruption();
+            mDatabase.onCorruption();
             throw ex;
         } finally {
             releaseReference();
@@ -128,10 +127,10 @@ public final class SQLiteStatement extends SQLiteProgram {
     public String simpleQueryForString() {
         acquireReference();
         try {
-            return getSession().executeForString(
+            return mDatabase.mSession.executeForString(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
-            onCorruption();
+            mDatabase.onCorruption();
             throw ex;
         } finally {
             releaseReference();

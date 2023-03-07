@@ -82,7 +82,18 @@ public class BenchmarkTest {
             String[] projection = new String[] {
                 Record.COLUMN_ID, Record.COLUMN_CONTENT, Record.COLUMN_CREATED_TIME, };
             cursor = db.query(Record.TABLE_NAME, projection, null, null, null, null, null);
-            readCursor(cursor);
+
+            if (cursor != null) {
+                int indexId = cursor.getColumnIndexOrThrow(Record.COLUMN_ID);
+                int indexContent = cursor.getColumnIndexOrThrow(Record.COLUMN_CONTENT);
+                int indexCreatedTime = cursor.getColumnIndexOrThrow(Record.COLUMN_CREATED_TIME);
+                while (cursor.moveToNext()) {
+                    Record record = new Record();
+                    record.setId(cursor.getLong(indexId));
+                    record.setContent(cursor.getString(indexContent));
+                    record.setCreatedTime(cursor.getLong(indexCreatedTime));
+                }
+            }
         } finally {
             if (cursor != null) {
                 cursor.close();
@@ -146,41 +157,23 @@ public class BenchmarkTest {
         try {
             io.requery.android.database.sqlite.SQLiteDatabase db = requerySQLite.getWritableDatabase();
             cursor = db.query("SELECT "+Record.COLUMN_ID+", "+Record.COLUMN_CONTENT+", "+Record.COLUMN_CREATED_TIME +" FROM "+Record.TABLE_NAME);
-            readCursor(cursor);
+            if(cursor != null) {
+                int indexId = 0;
+                int indexContent = 1;
+                int indexCreatedTime = 2;
+                while (cursor.moveToNext()) {
+                    Record record = new Record();
+                    record.setId(cursor.getLong(indexId));
+                    record.setContent(cursor.getString(indexContent));
+                    record.setCreatedTime(cursor.getLong(indexCreatedTime));
+                }
+            }
         } finally {
             if (cursor != null) {
                 cursor.close();
             }
         }
         statistics.read( trace.exit() );
-    }
-
-    private static void readCursor(Cursor cursor) {
-        if(cursor != null) {
-            int indexId = cursor.getColumnIndexOrThrow(Record.COLUMN_ID);
-            int indexContent = cursor.getColumnIndexOrThrow(Record.COLUMN_CONTENT);
-            int indexCreatedTime = cursor.getColumnIndexOrThrow(Record.COLUMN_CREATED_TIME);
-            while (cursor.moveToNext()) {
-                Record record = new Record();
-                record.setId(cursor.getLong(indexId));
-                record.setContent(cursor.getString(indexContent));
-                record.setCreatedTime(cursor.getLong(indexCreatedTime));
-            }
-        }
-    }
-
-    private static void readCursor(SQLiteCursor cursor) {
-        if(cursor != null) {
-            int indexId = cursor.getColumnIndexOrThrow(Record.COLUMN_ID);
-            int indexContent = cursor.getColumnIndexOrThrow(Record.COLUMN_CONTENT);
-            int indexCreatedTime = cursor.getColumnIndexOrThrow(Record.COLUMN_CREATED_TIME);
-            while (cursor.moveToNext()) {
-                Record record = new Record();
-                record.setId(cursor.getLong(indexId));
-                record.setContent(cursor.getString(indexContent));
-                record.setCreatedTime(cursor.getLong(indexCreatedTime));
-            }
-        }
     }
 
     private static class Record {

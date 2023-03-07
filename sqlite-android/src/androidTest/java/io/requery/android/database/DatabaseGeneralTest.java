@@ -24,7 +24,6 @@ import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteException;
 import android.os.Parcel;
 import android.util.Log;
-import android.util.Pair;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
@@ -41,9 +40,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -112,11 +109,11 @@ public class DatabaseGeneralTest {
         ContentValues values = new ContentValues(1);
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", values, "_id=1", null));
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
+        SQLiteCursor c = mDatabase.query("SELECT data FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(1, c.getCount());
         c.moveToFirst();
-        String value = c.getString(c.getColumnIndexOrThrow("data"));
+        String value = c.getString(0);
         assertEquals("this is an updated test", value);
     }
 
@@ -129,11 +126,11 @@ public class DatabaseGeneralTest {
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", SQLiteDatabase.CONFLICT_NONE, values,
                 "_id=?", new Object[] { 1 }));
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
+        SQLiteCursor c = mDatabase.query("SELECT data FROM test WHERE _id=1");
         assertNotNull(c);
         assertEquals(1, c.getCount());
         c.moveToFirst();
-        String value = c.getString(c.getColumnIndexOrThrow("data"));
+        String value = c.getString(0);
         assertEquals("this is an updated test", value);
     }
 
@@ -201,7 +198,7 @@ public class DatabaseGeneralTest {
     @Suppress // PHONE_NUMBERS_EQUAL not supported
     @SmallTest
     @Test
-    public void testPhoneNumbersEqualInternationl() throws Exception {
+    public void testPhoneNumbersEqualInternationl() {
         assertPhoneNumberEqual("1", "1");
         assertPhoneNumberEqual("123123", "123123");
         assertPhoneNumberNotEqual("123123", "923123");
@@ -270,16 +267,16 @@ public class DatabaseGeneralTest {
 
         SQLiteCursor c;
 
-        c = mDatabase.rawQuery("SELECT * FROM guess", null);
+        c = mDatabase.rawQuery("SELECT numi, numf, str FROM guess", null);
         
         c.moveToFirst();
         
         CharArrayBuffer buf = new CharArrayBuffer(14);
         
-        String compareTo = c.getString(c.getColumnIndexOrThrow("numi"));
-        int numiIdx = c.getColumnIndexOrThrow("numi");
-        int numfIdx = c.getColumnIndexOrThrow("numf");
-        int strIdx = c.getColumnIndexOrThrow("str");
+        int numiIdx = 0;
+        String compareTo = c.getString(numiIdx);
+        int numfIdx = 1;
+        int strIdx = 2;
         
         c.copyStringToBuffer(numiIdx, buf);
         assertEquals(1, buf.sizeCopied);

@@ -22,11 +22,9 @@ import android.database.Cursor;
 import android.database.CursorIndexOutOfBoundsException;
 import android.database.StaleDataException;
 import android.util.Log;
-import android.util.SparseIntArray;
 import io.requery.android.database.CursorWindow;
 
 import java.io.Closeable;
-import java.util.HashMap;
 
 /**
  * A Cursor implementation that exposes results from a query on a {@link SQLiteDatabase}.
@@ -36,9 +34,6 @@ import java.util.HashMap;
 public class SQLiteCursor implements Closeable {
     static final String TAG = "SQLiteCursor";
     static final int NO_COUNT = -1;
-
-    /** The names of the columns in the rows */
-    private final String[] mColumns;
 
     /** The query object for the cursor */
     private final SQLiteQuery mQuery;
@@ -51,10 +46,6 @@ public class SQLiteCursor implements Closeable {
 
     /** The number of rows that can fit in the cursor window, 0 if unknown */
     private int mCursorWindowCapacity;
-
-    /** A mapping of column names to column indices, to speed up lookups */
-    private SparseIntArray mColumnNameArray;
-    private HashMap<String, Integer> mColumnNameMap;
 
     /** Used to find out where a cursor was allocated in case it never got released. */
     private final CloseGuard mCloseGuard;
@@ -78,7 +69,6 @@ public class SQLiteCursor implements Closeable {
         mDriver = driver;
         mQuery = query;
         mCloseGuard = CloseGuard.get();
-        mColumns = query.getColumnNames();
     }
 
     /**
@@ -147,49 +137,6 @@ public class SQLiteCursor implements Closeable {
             // and fails to close the cursor.
             setWindow(null);
             throw ex;
-        }
-    }
-
-    public int getColumnIndex(String columnName) {
-        // Create mColumnNameMap on demand
-        if (mColumnNameArray == null && mColumnNameMap == null) {
-            String[] columns = mColumns;
-            int columnCount = columns.length;
-            SparseIntArray map = new SparseIntArray(columnCount);
-            boolean collision = false;
-            for (int i = 0; i < columnCount; i++) {
-                int key = columns[i].hashCode();
-                // check for hashCode collision
-                if (map.get(key, -1) != -1) {
-                    collision = true;
-                    break;
-                }
-                map.put(key, i);
-            }
-
-            if (collision) {
-                mColumnNameMap = new HashMap<>();
-                for (int i = 0; i < columnCount; i++) {
-                    mColumnNameMap.put(columns[i], i);
-                }
-            } else {
-                mColumnNameArray = map;
-            }
-        }
-
-        // Hack according to bug 903852
-        final int periodIndex = columnName.lastIndexOf('.');
-        if (periodIndex != -1) {
-            Exception e = new Exception();
-            Log.e(TAG, "requesting column name with table name -- " + columnName, e);
-            columnName = columnName.substring(periodIndex + 1);
-        }
-
-        if (mColumnNameMap != null) {
-            Integer i = mColumnNameMap.get(columnName);
-            return i == null ? -1 : i;
-        } else {
-            return mColumnNameArray.get(columnName.hashCode(), -1);
         }
     }
 
@@ -433,13 +380,5 @@ public class SQLiteCursor implements Closeable {
 
     public final boolean isAfterLast() {
         return getCount() == 0 || mPos == getCount();
-    }
-
-    public int getColumnIndexOrThrow(String columnName) {
-        final int index = getColumnIndex(columnName);
-        if (index < 0) {
-            throw new IllegalArgumentException("column '" + columnName + "' does not exist");
-        }
-        return index;
     }
 }

@@ -61,11 +61,11 @@ public final class SQLiteQuery extends SQLiteProgram {
         try {
             window.acquireReference();
             try {
-                return getSession().executeForCursorWindow(getSql(), getBindArgs(),
+                return mDatabase.mSession.executeForCursorWindow(getSql(), getBindArgs(),
                         window, startPos, requiredPos, countAllRows,
                         mCancellationSignal);
             } catch (SQLiteDatabaseCorruptException ex) {
-                onCorruption();
+                mDatabase.onCorruption();
                 throw ex;
             } catch (SQLiteException ex) {
                 Log.e(TAG, "exception: " + ex.getMessage() + "; query: " + getSql());

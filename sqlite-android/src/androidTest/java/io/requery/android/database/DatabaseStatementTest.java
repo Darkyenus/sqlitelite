@@ -144,11 +144,10 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
-        int numCol = c.getColumnIndexOrThrow("num");
+        SQLiteCursor c = mDatabase.query("SELECT num FROM test");
         c.moveToFirst();
         for (long i = 0; i < 10; i++) {
-            long num = c.getLong(numCol);
+            long num = c.getLong(0);
             assertEquals(i, num);
             c.moveToNext();
         }
@@ -167,11 +166,10 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
-        int numCol = c.getColumnIndexOrThrow("num");
+        SQLiteCursor c = mDatabase.query("SELECT num FROM test");
         c.moveToFirst();
         for (long i = 0; i < 10; i++) {
-            String num = c.getString(numCol);
+            String num = c.getString(0);
             assertEquals(Long.toHexString(i), num);
             c.moveToNext();
         }
@@ -191,11 +189,10 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
-        int numCol = c.getColumnIndexOrThrow("num");
+        SQLiteCursor c = mDatabase.query("SELECT num FROM test ORDER BY ROWID");
         assertTrue(c.moveToFirst());
         for (long i = 0; i < 10; i++) {
-            assertTrue(c.isNull(numCol));
+            assertTrue(c.isNull(0));
             c.moveToNext();
         }
         c.close();
@@ -214,9 +211,9 @@ public class DatabaseStatementTest {
 
         mDatabase.execSQL(statement, args);
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
-        int numCol = c.getColumnIndexOrThrow("num");
-        int valCol = c.getColumnIndexOrThrow("value");
+        SQLiteCursor c = mDatabase.query("SELECT num, value FROM test");
+        int numCol = 0;
+        int valCol = 1;
         c.moveToFirst();
         String num = c.getString(numCol);
         assertEquals(Integer.toHexString(0), num);
@@ -240,9 +237,9 @@ public class DatabaseStatementTest {
         }
         statement.close();
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
-        int numCol = c.getColumnIndexOrThrow("num");
-        int strCol = c.getColumnIndexOrThrow("str");
+        SQLiteCursor c = mDatabase.query("SELECT num, str FROM test ORDER BY ROWID");
+        int numCol = 0;
+        int strCol = 1;
         assertTrue(c.moveToFirst());
         for (long i = 0; i < 10; i++) {
             long num = c.getLong(numCol);
@@ -275,9 +272,9 @@ public class DatabaseStatementTest {
             mDatabase.setTransactionSuccessful();
             mDatabase.endTransaction();
 
-            SQLiteCursor c = mDatabase.query("SELECT * FROM test ORDER BY ROWID");
-            int numCol = c.getColumnIndexOrThrow("num");
-            int strCol = c.getColumnIndexOrThrow("str");
+            SQLiteCursor c = mDatabase.query("SELECT num, str FROM test ORDER BY ROWID");
+            int numCol = 0;
+            int strCol = 1;
             assertTrue(c.moveToFirst());
             for (long i = 0; i < 10; i++) {
                 long num = c.getLong(numCol);
@@ -326,8 +323,8 @@ public class DatabaseStatementTest {
         statement.execute();
         statement.close();
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
-        int numCol = c.getColumnIndexOrThrow("num");
+        SQLiteCursor c = mDatabase.query("SELECT num FROM test");
+        int numCol = 0;
         c.moveToFirst();
         long num = c.getLong(numCol);
         assertEquals(1, num);

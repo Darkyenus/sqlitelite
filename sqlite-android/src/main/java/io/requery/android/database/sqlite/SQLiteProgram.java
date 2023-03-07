@@ -31,10 +31,8 @@ import java.util.Arrays;
 public abstract class SQLiteProgram extends SQLiteClosable {
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
-    private final SQLiteDatabase mDatabase;
+    protected final SQLiteDatabase mDatabase;
     private final String mSql;
-    private final boolean mReadOnly;
-    private final String[] mColumnNames;
     private final int mNumParameters;
     private final Object[] mBindArgs;
 
@@ -47,8 +45,7 @@ public abstract class SQLiteProgram extends SQLiteClosable {
             case SQLiteStatementType.STATEMENT_BEGIN:
             case SQLiteStatementType.STATEMENT_COMMIT:
             case SQLiteStatementType.STATEMENT_ABORT:
-                mReadOnly = false;
-                mColumnNames = EMPTY_STRING_ARRAY;
+                boolean mReadOnly = false;
                 mNumParameters = 0;
                 break;
 
@@ -56,8 +53,6 @@ public abstract class SQLiteProgram extends SQLiteClosable {
                 boolean assumeReadOnly = (n == SQLiteStatementType.STATEMENT_SELECT);
                 SQLiteStatementInfo info = new SQLiteStatementInfo();
                 db.mSession.prepare(mSql, cancellationSignalForPrepare, info);
-                mReadOnly = info.readOnly;
-                mColumnNames = info.columnNames;
                 mNumParameters = info.numParameters;
                 break;
         }
@@ -88,20 +83,6 @@ public abstract class SQLiteProgram extends SQLiteClosable {
 
     final Object[] getBindArgs() {
         return mBindArgs;
-    }
-
-    final String[] getColumnNames() {
-        return mColumnNames;
-    }
-
-    /** @hide */
-    protected final SQLiteSession getSession() {
-        return mDatabase.mSession;
-    }
-
-    /** @hide */
-    protected final void onCorruption() {
-        mDatabase.onCorruption();
     }
 
     /**

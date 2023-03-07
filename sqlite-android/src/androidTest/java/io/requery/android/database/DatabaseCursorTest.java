@@ -148,14 +148,9 @@ public class DatabaseCursorTest {
     public void testCursor1() {
         populateDefaultTable();
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT _id, data FROM test");
 
-        int dataColumn = c.getColumnIndexOrThrow("data");
-
-        // The cursor should ignore text before the last period when looking for a column. (This
-        // is a temporary hack in all implementations of getColumnIndex.)
-        int dataColumn2 = c.getColumnIndexOrThrow("junk.data");
-        assertEquals(dataColumn, dataColumn2);
+        int dataColumn = 1;
 
         assertSame(3, c.getCount());
 
@@ -254,13 +249,13 @@ public class DatabaseCursorTest {
         sql.append("');");
         mDatabase.execSQL(sql.toString());
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT _id, data FROM test");
         assertNotNull(c);
         assertEquals(1, c.getCount());
 
         assertTrue(c.moveToFirst());
         assertEquals(0, c.getPosition());
-        String largeString = c.getString(c.getColumnIndexOrThrow("data"));
+        String largeString = c.getString(1);
         assertNotNull(largeString);
         assertEquals(randomString.toString(), largeString);
         c.close();
