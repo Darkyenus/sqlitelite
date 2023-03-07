@@ -130,23 +130,24 @@ public class BenchmarkTest {
     private void testRequerySQLiteWrite(Statistics statistics, int count) {
         Trace trace = new Trace("requery Write");
         io.requery.android.database.sqlite.SQLiteDatabase db = requerySQLite.getWritableDatabase();
-        SQLitePreparedStatement statement = db.compileStatement(
-            String.format("insert into %s (%s, %s) values (?,?)",
-                Record.TABLE_NAME,
-                Record.COLUMN_CONTENT,
-                Record.COLUMN_CREATED_TIME));
-        try {
-            db.beginTransactionExclusive();
-            for (int i = 0; i < count; i++) {
-                Record record = Record.create(i);
-                statement.bindString(1, record.getContent());
-                statement.bindDouble(2, record.getCreatedTime());
-                long id = statement.executeInsert();
-                record.setId(id);
+        try (SQLitePreparedStatement statement = db.compileStatement(
+                String.format("insert into %s (%s, %s) values (?,?)",
+                        Record.TABLE_NAME,
+                        Record.COLUMN_CONTENT,
+                        Record.COLUMN_CREATED_TIME))) {
+            try {
+                db.beginTransactionExclusive();
+                for (int i = 0; i < count; i++) {
+                    Record record = Record.create(i);
+                    statement.bindString(1, record.getContent());
+                    statement.bindDouble(2, record.getCreatedTime());
+                    long id = statement.executeInsert();
+                    record.setId(id);
+                }
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
             }
-            db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
         }
         statistics.write( trace.exit() );
     }

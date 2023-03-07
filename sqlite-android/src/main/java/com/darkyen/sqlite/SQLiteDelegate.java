@@ -28,10 +28,7 @@ public abstract class SQLiteDelegate {
      * the database except to configure the database connection as required.
      * </p><p>
      * This method should only call methods that configure the parameters of the
-     * database connection, such as
-     * {@link SQLiteDatabase#setForeignKeyConstraintsEnabled},
-     * {@link SQLiteDatabase#setMaximumSize},
-     * or executing PRAGMA statements.
+     * database connection, such as executing PRAGMA statements.
      * </p>
      *
      * @param db The database.

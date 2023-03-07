@@ -85,13 +85,13 @@ public class DatabaseStatementTest {
     @Test
     public void testExecuteStatement() {
         populateDefaultTable();
-        SQLitePreparedStatement statement = mDatabase.compileStatement("DELETE FROM test");
-        statement.execute();
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("DELETE FROM test")) {
+            statement.execute();
+        }
 
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
-        assertEquals(0, c.getCount());
-        c.close();
-        statement.close();
+        try (SQLiteCursor c = mDatabase.query("SELECT * FROM test")) {
+            assertEquals(0, c.getCount());
+        }
     }
 
     @MediumTest
@@ -99,50 +99,45 @@ public class DatabaseStatementTest {
     public void testSimpleQuery() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER NOT NULL, str TEXT NOT NULL);");
         mDatabase.execSQL("INSERT INTO test VALUES (1234, 'hello');");
-        SQLitePreparedStatement statement1 =
-                mDatabase.compileStatement("SELECT num FROM test WHERE str = ?");
-        SQLitePreparedStatement statement2 =
-                mDatabase.compileStatement("SELECT str FROM test WHERE num = ?");
+        try (SQLitePreparedStatement statement1 = mDatabase.compileStatement("SELECT num FROM test WHERE str = ?");
+             SQLitePreparedStatement statement2 = mDatabase.compileStatement("SELECT str FROM test WHERE num = ?")
+        ) {
+            try {
+                statement1.bindString(1, "hello");
+                long value = statement1.simpleQueryForLong();
+                assertEquals(1234, value);
 
-        try {
-            statement1.bindString(1, "hello");
-            long value = statement1.simpleQueryForLong();
-            assertEquals(1234, value);
+                statement1.bindString(1, "world");
+                statement1.simpleQueryForLong();
+                fail("shouldn't get here");
+            } catch (SQLiteDoneException e) {
+                // expected
+            }
 
-            statement1.bindString(1, "world");
-            statement1.simpleQueryForLong();
-            fail("shouldn't get here");
-        } catch (SQLiteDoneException e) {
-            // expected
+            try {
+                statement2.bindLong(1, 1234);
+                String value = statement1.simpleQueryForString();
+                assertEquals("hello", value);
+
+                statement2.bindLong(1, 5678);
+                statement1.simpleQueryForString();
+                fail("shouldn't get here");
+            } catch (SQLiteDoneException e) {
+                // expected
+            }
         }
-
-        try {
-            statement2.bindLong(1, 1234);
-            String value = statement1.simpleQueryForString();
-            assertEquals("hello", value);
-
-            statement2.bindLong(1, 5678);
-            statement1.simpleQueryForString();
-            fail("shouldn't get here");
-        } catch (SQLiteDoneException e) {
-            // expected
-        }
-
-        statement1.close();
-        statement2.close();
     }
 
     @MediumTest
     @Test
     public void testStatementLongBinding() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER);");
-        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
-
-        for (int i = 0; i < 10; i++) {
-            statement.bindLong(1, i);
-            statement.execute();
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)")) {
+            for (int i = 0; i < 10; i++) {
+                statement.bindLong(1, i);
+                statement.execute();
+            }
         }
-        statement.close();
 
         SQLiteCursor c = mDatabase.query("SELECT num FROM test");
         c.moveToFirst();
@@ -158,13 +153,12 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementStringBinding() {
         mDatabase.execSQL("CREATE TABLE test (num TEXT);");
-        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
-
-        for (long i = 0; i < 10; i++) {
-            statement.bindString(1, Long.toHexString(i));
-            statement.execute();
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)")) {
+            for (long i = 0; i < 10; i++) {
+                statement.bindString(1, Long.toHexString(i));
+                statement.execute();
+            }
         }
-        statement.close();
 
         SQLiteCursor c = mDatabase.query("SELECT num FROM test");
         c.moveToFirst();
@@ -180,14 +174,13 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementClearBindings() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER);");
-        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
-
-        for (long i = 0; i < 10; i++) {
-            statement.bindLong(1, i);
-            statement.clearBindings();
-            statement.execute();
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)")) {
+            for (long i = 0; i < 10; i++) {
+                statement.bindLong(1, i);
+                statement.clearBindings();
+                statement.execute();
+            }
         }
-        statement.close();
 
         SQLiteCursor c = mDatabase.query("SELECT num FROM test ORDER BY ROWID");
         assertTrue(c.moveToFirst());
@@ -227,15 +220,13 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementMultipleBindings() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER, str TEXT);");
-        SQLitePreparedStatement statement =
-                mDatabase.compileStatement("INSERT INTO test (num, str) VALUES (?, ?)");
-
-        for (long i = 0; i < 10; i++) {
-            statement.bindLong(1, i);
-            statement.bindString(2, Long.toHexString(i));
-            statement.execute();
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num, str) VALUES (?, ?)")) {
+            for (long i = 0; i < 10; i++) {
+                statement.bindLong(1, i);
+                statement.bindString(2, Long.toHexString(i));
+                statement.execute();
+            }
         }
-        statement.close();
 
         SQLiteCursor c = mDatabase.query("SELECT num, str FROM test ORDER BY ROWID");
         int numCol = 0;
@@ -291,15 +282,10 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementMultiThreaded() throws Exception {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER, str TEXT);");
-        SQLitePreparedStatement statement =
-                mDatabase.compileStatement("INSERT INTO test (num, str) VALUES (?, ?)");
-
-        StatementTestThread thread = new StatementTestThread(mDatabase, statement);
-        thread.start();
-        try {
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num, str) VALUES (?, ?)")) {
+            StatementTestThread thread = new StatementTestThread(mDatabase, statement);
+            thread.start();
             thread.join();
-        } finally {
-            statement.close();
         }
     }
 
@@ -307,21 +293,21 @@ public class DatabaseStatementTest {
     @Test
     public void testStatementConstraint() {
         mDatabase.execSQL("CREATE TABLE test (num INTEGER NOT NULL);");
-        SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)");
+        try (SQLitePreparedStatement statement = mDatabase.compileStatement("INSERT INTO test (num) VALUES (?)")) {
 
-        // Try to insert NULL, which violates the constraint
-        try {
-            statement.clearBindings();
+            // Try to insert NULL, which violates the constraint
+            try {
+                statement.clearBindings();
+                statement.execute();
+                fail("expected exception not thrown");
+            } catch (SQLiteConstraintException e) {
+                // expected
+            }
+
+            // Make sure the statement can still be used
+            statement.bindLong(1, 1);
             statement.execute();
-            fail("expected exception not thrown");
-        } catch (SQLiteConstraintException e) {
-            // expected
         }
-
-        // Make sure the statement can still be used
-        statement.bindLong(1, 1);
-        statement.execute();
-        statement.close();
 
         SQLiteCursor c = mDatabase.query("SELECT num FROM test");
         int numCol = 0;

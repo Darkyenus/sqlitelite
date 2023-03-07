@@ -23,7 +23,7 @@ import org.junit.runner.RunWith;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-@Ignore
+@Ignore("")
 @RunWith(AndroidJUnit4.class)
 public class NewDatabasePerformanceTestSuite extends TestSuite {
 

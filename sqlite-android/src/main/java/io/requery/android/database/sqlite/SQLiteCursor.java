@@ -53,9 +53,6 @@ public class SQLiteCursor implements Closeable {
 
     protected boolean mClosed;
 
-    /** Used to find out where a cursor was allocated in case it never got released. */
-    private final CloseGuard mCloseGuard;
-
     /**
      * Execute a query and provide access to its result set through a Cursor
      * interface. For a query such as: {@code SELECT name, birth, phone FROM
@@ -73,7 +70,6 @@ public class SQLiteCursor implements Closeable {
             throw new IllegalArgumentException("query object cannot be null");
         }
         mQuery = query;
-        mCloseGuard = CloseGuard.get();
     }
 
     /**
@@ -156,24 +152,6 @@ public class SQLiteCursor implements Closeable {
             // for backwards compatibility, just return false
             Log.w(TAG, "requery() failed " + e.getMessage(), e);
             return false;
-        }
-    }
-
-    /**
-     * Release the native resources, if they haven't been released yet.
-     */
-    @Override
-    protected void finalize() {
-        try {
-            // if the cursor hasn't been closed yet, close it first
-            if (mWindow != null) {
-                mCloseGuard.warnIfOpen();
-                close();
-            }
-        } finally {
-            try {
-                if (!mClosed) close();
-            } catch(Exception ignored) { }
         }
     }
 

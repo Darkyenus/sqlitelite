@@ -47,7 +47,7 @@ import static com.darkyen.sqlite.SQLiteNative.nativePrepareStatement;
  * </p>
  */
 @SuppressWarnings("unused")
-public final class SQLitePreparedStatement extends SQLiteClosable {
+public final class SQLitePreparedStatement implements AutoCloseable {
     private static final String TAG = "SQLitePreparedStatement";
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
@@ -58,7 +58,7 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
 
     private final CancellationSignal mCancellationSignal;
 
-    final long statementPtr;
+    long statementPtr;
 
     SQLitePreparedStatement(SQLiteDatabase db, String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
         if (sql == null) {
@@ -257,8 +257,16 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
     }
 
     @Override
-    protected void onAllReferencesReleased() {
-        clearBindings();
+    public void close() {
+        final long ptr = this.statementPtr;
+        if (ptr != 0) {
+            statementPtr = 0;
+            final long connectionPtr = mDatabase.mSession.mConnection.mConnectionPtr;
+            nativeFinalizeStatement(connectionPtr, ptr);
+        }
+        if (mBindArgs != null) {
+            Arrays.fill(mBindArgs, null);
+        }
     }
 
     private void bind(int index, Object value) {
@@ -278,14 +286,11 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
      * @throws SQLException If the SQL string is invalid for some reason
      */
     public void execute() {
-        acquireReference();
         try {
             mDatabase.mSession.execute(getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
-        } finally {
-            releaseReference();
         }
     }
 
@@ -297,15 +302,12 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
      * @throws SQLException If the SQL string is invalid for some reason
      */
     public int executeUpdateDelete() {
-        acquireReference();
         try {
             return mDatabase.mSession.executeForChangedRowCount(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
-        } finally {
-            releaseReference();
         }
     }
 
@@ -318,15 +320,12 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
      * @throws SQLException If the SQL string is invalid for some reason
      */
     public long executeInsert() {
-        acquireReference();
         try {
             return mDatabase.mSession.executeForLastInsertedRowId(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
-        } finally {
-            releaseReference();
         }
     }
 
@@ -339,15 +338,12 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
      * @throws SQLiteDoneException if the query returns zero rows
      */
     public long simpleQueryForLong() {
-        acquireReference();
         try {
             return mDatabase.mSession.executeForLong(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
-        } finally {
-            releaseReference();
         }
     }
 
@@ -360,15 +356,12 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
      * @throws SQLiteDoneException if the query returns zero rows
      */
     public String simpleQueryForString() {
-        acquireReference();
         try {
             return mDatabase.mSession.executeForString(
                     getSql(), getBindArgs(), null);
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
-        } finally {
-            releaseReference();
         }
     }
     //endregion
@@ -392,36 +385,31 @@ public final class SQLitePreparedStatement extends SQLiteClosable {
      */
     int fillWindow(CursorWindow window, int startPos, int requiredPos, boolean countAllRows) {
         final long mConnectionPtr = mDatabase.mSession.mConnection.mConnectionPtr;
-        acquireReference();
+        window.acquireReference();
         try {
-            window.acquireReference();
-            try {
-                SQLiteNative.nativeResetStatementAndClearBindings(mConnectionPtr, statementPtr);
-                bindArguments(mBindArgs);
+            SQLiteNative.nativeResetStatementAndClearBindings(mConnectionPtr, statementPtr);
+            bindArguments(mBindArgs);
 
-                    mDatabase.mSession.mConnection.attachCancellationSignal(mCancellationSignal);
-                    try {
-                        final long result = nativeExecuteForCursorWindow(
-                                mDatabase.mSession.mConnection.mConnectionPtr, statementPtr, window.mWindowPtr,
-                                startPos, requiredPos, countAllRows);
-                        int actualPos = (int)(result >> 32);
-                        int countedRows = (int)result;
-                        window.setStartPosition(actualPos);
-                        return countedRows;
-                    } finally {
-                        mDatabase.mSession.mConnection.detachCancellationSignal(mCancellationSignal);
-                    }
-            } catch (SQLiteDatabaseCorruptException ex) {
-                mDatabase.onCorruption();
-                throw ex;
-            } catch (SQLiteException ex) {
-                Log.e(TAG, "exception: " + ex.getMessage() + "; query: " + getSql());
-                throw ex;
-            } finally {
-                window.releaseReference();
-            }
+                mDatabase.mSession.mConnection.attachCancellationSignal(mCancellationSignal);
+                try {
+                    final long result = nativeExecuteForCursorWindow(
+                            mDatabase.mSession.mConnection.mConnectionPtr, statementPtr, window.mWindowPtr,
+                            startPos, requiredPos, countAllRows);
+                    int actualPos = (int)(result >> 32);
+                    int countedRows = (int)result;
+                    window.setStartPosition(actualPos);
+                    return countedRows;
+                } finally {
+                    mDatabase.mSession.mConnection.detachCancellationSignal(mCancellationSignal);
+                }
+        } catch (SQLiteDatabaseCorruptException ex) {
+            mDatabase.onCorruption();
+            throw ex;
+        } catch (SQLiteException ex) {
+            Log.e(TAG, "exception: " + ex.getMessage() + "; query: " + getSql());
+            throw ex;
         } finally {
-            releaseReference();
+            window.releaseReference();
         }
     }
     //endregion

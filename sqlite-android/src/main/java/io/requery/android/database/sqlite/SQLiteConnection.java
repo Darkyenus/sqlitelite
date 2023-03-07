@@ -27,6 +27,8 @@ import android.os.OperationCanceledException;
 import android.util.Log;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.Closeable;
+
 import static com.darkyen.sqlite.SQLiteNative.nativeClose;
 import static com.darkyen.sqlite.SQLiteNative.nativeExecute;
 import static com.darkyen.sqlite.SQLiteNative.nativeExecuteForChangedRowCount;
@@ -76,14 +78,10 @@ import static com.darkyen.sqlite.SQLiteNative.nativeOpen;
  * triggers may call custom SQLite functions that perform additional queries.
  * </p>
  */
-public final class SQLiteConnection implements CancellationSignal.OnCancelListener {
+public final class SQLiteConnection implements CancellationSignal.OnCancelListener, Closeable {
     private static final String TAG = "SQLiteConnection";
 
-    private final CloseGuard mCloseGuard = CloseGuard.get();
-
     private final SQLiteDatabase db;
-    private final SQLiteDatabaseConfiguration mConfiguration;
-
 
     // The native SQLiteConnection pointer.  (FOR INTERNAL USE ONLY)
     long mConnectionPtr;
@@ -95,65 +93,34 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     @Deprecated//("No longer used")
     private int mCancellationSignalAttachCount;
 
-    private SQLiteConnection(SQLiteDatabase db, SQLiteDatabaseConfiguration configuration) {
+    SQLiteConnection(SQLiteDatabase db, SQLiteDatabaseConfiguration configuration) {
         this.db = db;
-        mConfiguration = configuration;
-        mCloseGuard.open("close");
+        mConnectionPtr = nativeOpen(configuration.path,
+                configuration.openFlags,
+                configuration.label);
+        boolean ok = false;
+        try {
+            boolean readOnly = (configuration.openFlags & SQLiteDatabase.OPEN_READONLY) != 0;
+            if (!readOnly) {
+                executePragma("foreign_keys", configuration.foreignKeyConstraintsEnabled ? "1" : "0");
+                if (!configuration.isInMemoryDb()) {
+                    executePragma("journal_mode", "WAL");
+                }
+            }
+            ok = true;
+        } finally {
+            if (!ok) {
+                nativeClose(mConnectionPtr);
+            }
+        }
     }
 
     @Override
-    protected void finalize() throws Throwable {
-        try {
-            dispose(true);
-        } finally {
-            super.finalize();
-        }
-    }
-
-    // Called by SQLiteConnectionPool only.
-    static SQLiteConnection open(SQLiteDatabase db, SQLiteDatabaseConfiguration configuration) {
-        SQLiteConnection connection = new SQLiteConnection(db, configuration);
-        try {
-            connection.open();
-            return connection;
-        } catch (SQLiteException ex) {
-            connection.dispose(false);
-            throw ex;
-        }
-    }
-
-    // Called by SQLiteConnectionPool only.
-    // Closes the database closes and releases all of its associated resources.
-    // Do not call methods on the connection after it is closed.  It will probably crash.
-    void close() {
-        dispose(false);
-    }
-
-    private void open() {
-        mConnectionPtr = nativeOpen(mConfiguration.path,
-                mConfiguration.openFlags,
-                mConfiguration.label);
-
-        boolean readOnly = (mConfiguration.openFlags & SQLiteDatabase.OPEN_READONLY) != 0;
-        if (!readOnly) {
-            executePragma("foreign_keys", mConfiguration.foreignKeyConstraintsEnabled ? "1" : "0");
-            if (!mConfiguration.isInMemoryDb()) {
-                executePragma("journal_mode", "WAL");
-            }
-        }
-    }
-
-    private void dispose(boolean finalized) {
-        if (mCloseGuard != null) {
-            if (finalized) {
-                mCloseGuard.warnIfOpen();
-            }
-            mCloseGuard.close();
-        }
-
-        if (mConnectionPtr != 0) {
-            nativeClose(mConnectionPtr);
-            mConnectionPtr = 0;
+    public void close() {
+        final long ptr = mConnectionPtr;
+        mConnectionPtr = 0;
+        if (ptr != 0) {
+            nativeClose(ptr);
         }
     }
 
@@ -232,13 +199,15 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         }
     }
 
-    public void executePragma(@NotNull String pragmaName, @NotNull String value) {
+    public String executePragma(@NotNull String pragmaName, @NotNull String value) {
         final String sql = "PRAGMA " + pragmaName + "=" + value;
         try {
             String result = nativeExecutePragma(mConnectionPtr, sql);
             Log.i(TAG, sql+" -> "+result);
+            return result;
         } catch (SQLiteException e) {
             Log.e(TAG, "Failed to execute "+sql, e);
+            return null;
         }
     }
 
@@ -325,11 +294,5 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     // that the SQLite connection is still alive.
     public void onCancel() {
         nativeInterrupt(mConnectionPtr);
-    }
-
-    @NotNull
-    @Override
-    public String toString() {
-        return "SQLiteConnection: " + mConfiguration.path + " (" + System.identityHashCode(this) + ")";
     }
 }

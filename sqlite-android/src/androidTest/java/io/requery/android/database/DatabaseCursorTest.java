@@ -89,10 +89,36 @@ public class DatabaseCursorTest {
         mDatabase.execSQL("INSERT INTO test (data) VALUES ('" + sString3 + "');");
     }
 
+
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     @MediumTest
     @Test
-    public void testBlob() {
+    public void testBlobA() {
+        // create table
+        mDatabase.execSQL(
+                "CREATE TABLE test (_id INTEGER PRIMARY KEY, s TEXT, d REAL, l INTEGER, b BLOB);");
+        // insert blob
+        Object[] args = new Object[4];
+
+        String s = "text";
+        args[0] = s;
+        double d = 99.9;
+        args[1] = d;
+        long l = 1000L;
+        args[2] = l;
+        byte[] b = new byte[1000];
+        byte value = 99;
+        Arrays.fill(b, value);
+        args[3] = b;
+
+        String sql = "INSERT INTO test (s, d, l, b) VALUES (?,?,?,?)";
+        mDatabase.execSQL(sql, args);
+    }
+
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
+    @MediumTest
+    @Test
+    public void testBlobB() {
         // create table
         mDatabase.execSQL(
             "CREATE TABLE test (_id INTEGER PRIMARY KEY, s TEXT, d REAL, l INTEGER, b BLOB);");

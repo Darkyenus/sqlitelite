@@ -41,9 +41,7 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.ArrayList;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 /**
  * Exposes methods to manage a SQLite database.
@@ -82,11 +80,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
     private static final int EVENT_DB_CORRUPT = 75004;
 
-    // Stores reference to all databases opened in the current process.
-    // (The referent Object is not used at this time.)
-    // INVARIANT: Guarded by sActiveDatabases.
-    private static final WeakHashMap<SQLiteDatabase, Object> sActiveDatabases = new WeakHashMap<>();
-
     public SQLiteSession mSession = null;
 
     // Error handler to be used when SQLite returns corruption errors.
@@ -108,10 +101,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
     // Basic rule: grab the lock, access or modify global state, release the lock, then
     // do the required SQL work.
     private final Object mLock = new Object();
-
-    // Warns if the database is finalized without being closed properly.
-    // INVARIANT: Guarded by mLock.
-    private final CloseGuard mCloseGuardLocked = CloseGuard.get();
 
     // The database configuration.
     // INVARIANT: Guarded by mLock.
@@ -228,43 +217,20 @@ public final class SQLiteDatabase extends SQLiteClosable {
         mConfigurationLocked = configuration;
     }
 
-    @SuppressWarnings("ThrowFromFinallyBlock")
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            dispose(true);
-        } finally {
-            super.finalize();
-        }
-    }
-
     @Override
     protected void onAllReferencesReleased() {
-        dispose(false);
+        dispose();
     }
 
-    private void dispose(boolean finalized) {
+    private void dispose() {
         final SQLiteSession session;
         synchronized (mLock) {
-            if (mCloseGuardLocked != null) {
-                if (finalized) {
-                    mCloseGuardLocked.warnIfOpen();
-                }
-                mCloseGuardLocked.close();
-            }
-
             session = mSession;
             mSession = null;
         }
 
-        if (!finalized) {
-            synchronized (sActiveDatabases) {
-                sActiveDatabases.remove(this);
-            }
-
-            if (session != null) {
-                session.close();
-            }
+        if (session != null) {
+            session.close();
         }
     }
 
@@ -583,7 +549,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * @return the database version
      */
     public int getVersion() {
-        return ((Long) longForQuery("PRAGMA user_version;", null)).intValue();
+        return (int) longForQuery("PRAGMA user_version;", null);
     }
 
     /**
@@ -593,54 +559,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
      */
     public void setVersion(int version) {
         execSQL("PRAGMA user_version = " + version);
-    }
-
-    /**
-     * Returns the maximum size the database may grow to.
-     *
-     * @return the new maximum database size
-     */
-    public long getMaximumSize() {
-        long pageCount = longForQuery("PRAGMA max_page_count;", null);
-        return pageCount * getPageSize();
-    }
-
-    /**
-     * Sets the maximum size the database will grow to. The maximum size cannot
-     * be set below the current size.
-     *
-     * @param numBytes the maximum database size, in bytes
-     * @return the new maximum database size
-     */
-    public long setMaximumSize(long numBytes) {
-        long pageSize = getPageSize();
-        long numPages = numBytes / pageSize;
-        // If numBytes isn't a multiple of pageSize, bump up a page
-        if ((numBytes % pageSize) != 0) {
-            numPages++;
-        }
-        long newPageCount = longForQuery("PRAGMA max_page_count = " + numPages, null);
-        return newPageCount * pageSize;
-    }
-
-    /**
-     * Returns the current database page size, in bytes.
-     *
-     * @return the database page size, in bytes
-     */
-    public long getPageSize() {
-        return longForQuery("PRAGMA page_size;", null);
-    }
-
-    /**
-     * Sets the database page size. The page size must be a power of two. This
-     * method does not work if any data has been written to the database file,
-     * and must be called right after the database has been created.
-     *
-     * @param numBytes the database page size, in bytes
-     */
-    public void setPageSize(long numBytes) {
-        execSQL("PRAGMA page_size = " + numBytes);
     }
 
     /**
@@ -954,11 +872,8 @@ public final class SQLiteDatabase extends SQLiteClosable {
             }
             sql.append(')');
 
-            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null);
-            try {
+            try (SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null)) {
                 return statement.executeInsert();
-            } finally {
-                statement.close();
             }
         } finally {
             releaseReference();
@@ -980,14 +895,9 @@ public final class SQLiteDatabase extends SQLiteClosable {
      */
     public int delete(String table, String whereClause, String[] whereArgs) {
         acquireReference();
-        try {
-            SQLitePreparedStatement statement =  new SQLitePreparedStatement(this, "DELETE FROM " + table +
-                    (!TextUtils.isEmpty(whereClause) ? " WHERE " + whereClause : ""), whereArgs, null);
-            try {
-                return statement.executeUpdateDelete();
-            } finally {
-                statement.close();
-            }
+        try (SQLitePreparedStatement statement = new SQLitePreparedStatement(this, "DELETE FROM " + table +
+                (!TextUtils.isEmpty(whereClause) ? " WHERE " + whereClause : ""), whereArgs, null)) {
+            return statement.executeUpdateDelete();
         } finally {
             releaseReference();
         }
@@ -1009,12 +919,9 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public int delete(String table, String whereClause, Object[] whereArgs) {
         acquireReference();
         try {
-            SQLitePreparedStatement statement =  new SQLitePreparedStatement(this, "DELETE FROM " + table +
-                    (!TextUtils.isEmpty(whereClause) ? " WHERE " + whereClause : ""), whereArgs, null);
-            try {
+            try (SQLitePreparedStatement statement = new SQLitePreparedStatement(this, "DELETE FROM " + table +
+                    (!TextUtils.isEmpty(whereClause) ? " WHERE " + whereClause : ""), whereArgs, null)) {
                 return statement.executeUpdateDelete();
-            } finally {
-                statement.close();
             }
         } finally {
             releaseReference();
@@ -1087,11 +994,8 @@ public final class SQLiteDatabase extends SQLiteClosable {
                 sql.append(whereClause);
             }
 
-            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null);
-            try {
+            try (SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null)) {
                 return statement.executeUpdateDelete();
-            } finally {
-                statement.close();
             }
         } finally {
             releaseReference();
@@ -1147,11 +1051,8 @@ public final class SQLiteDatabase extends SQLiteClosable {
                 sql.append(whereClause);
             }
 
-            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null);
-            try {
+            try (SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql.toString(), bindArgs, null)) {
                 return statement.executeUpdateDelete();
-            } finally {
-                statement.close();
             }
         } finally {
             releaseReference();
@@ -1221,13 +1122,8 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
     private int executeSql(String sql, Object[] bindArgs) throws SQLException {
         acquireReference();
-        try {
-            SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql, bindArgs, null);
-            try {
-                return statement.executeUpdateDelete();
-            } finally {
-                statement.close();
-            }
+        try (SQLitePreparedStatement statement = new SQLitePreparedStatement(this, sql, bindArgs, null)) {
+            return statement.executeUpdateDelete();
         } finally {
             releaseReference();
         }
@@ -1295,12 +1191,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         }
     }
 
-    private static ArrayList<SQLiteDatabase> getActiveDatabases() {
-        synchronized (sActiveDatabases) {
-            return new ArrayList<>(sActiveDatabases.keySet());
-        }
-    }
-
     /**
      * Runs 'pragma integrity_check' on the given database (and all the attached databases)
      * and returns true if the given database (and all its attached databases) pass integrity_check,
@@ -1317,27 +1207,17 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public boolean isDatabaseIntegrityOk() {
         acquireReference();
         try {
-            SQLitePreparedStatement prog = null;
-            try {
-                prog = compileStatement("PRAGMA integrity_check(1);");
-                String rslt = prog.simpleQueryForString();
-                if (!rslt.equalsIgnoreCase("ok")) {
-                    // integrity_checker failed on main or attached databases
-                    Log.e(TAG, "PRAGMA integrity_check returned: " + rslt);
-                    return false;
-                }
-            } finally {
-                if (prog != null) prog.close();
+            String rslt = mSession.mConnection.executePragma("integrity_check", "1");
+            if ("ok".equalsIgnoreCase(rslt)) {
+                return true;
+            } else {
+                // integrity_checker failed on main or attached databases
+                Log.e(TAG, "PRAGMA integrity_check returned: " + rslt);
+                return false;
             }
         } finally {
             releaseReference();
         }
-        return true;
-    }
-
-    @Override
-    public String toString() {
-        return "SQLiteDatabase: " + getPath();
     }
 
     private void throwIfNotOpenLocked() {
@@ -1391,21 +1271,10 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * first column of the first row.
      */
     public long longForQuery(String query, String[] selectionArgs) {
-        SQLitePreparedStatement prog = compileStatement(query);
-        try {
-            return longForQuery(prog, selectionArgs);
-        } finally {
-            prog.close();
+        try (SQLitePreparedStatement prog = compileStatement(query)) {
+            prog.bindAllArgsAsStrings(selectionArgs);
+            return prog.simpleQueryForLong();
         }
-    }
-
-    /**
-     * Utility method to run the pre-compiled query and return the value in the
-     * first column of the first row.
-     */
-    private static long longForQuery(SQLitePreparedStatement prog, String[] selectionArgs) {
-        prog.bindAllArgsAsStrings(selectionArgs);
-        return prog.simpleQueryForLong();
     }
 
     /**
@@ -1413,20 +1282,10 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * first column of the first row.
      */
     public String stringForQuery(String query, String[] selectionArgs) {
-        SQLitePreparedStatement prog = compileStatement(query);
-        try {
-            return stringForQuery(prog, selectionArgs);
-        } finally {
-            prog.close();
+        try (SQLitePreparedStatement prog = compileStatement(query)) {
+            prog.bindAllArgsAsStrings(selectionArgs);
+            return prog.simpleQueryForString();
         }
     }
 
-    /**
-     * Utility method to run the pre-compiled query and return the value in the
-     * first column of the first row.
-     */
-    public static String stringForQuery(SQLitePreparedStatement prog, String[] selectionArgs) {
-        prog.bindAllArgsAsStrings(selectionArgs);
-        return prog.simpleQueryForString();
-    }
 }

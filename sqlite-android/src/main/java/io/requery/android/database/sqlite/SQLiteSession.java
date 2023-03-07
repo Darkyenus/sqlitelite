@@ -210,7 +210,7 @@ public final class SQLiteSession {
      * Creates a session bound to the specified connection pool.
      */
     public SQLiteSession(@NotNull SQLiteDatabase database) {
-        mConnection = SQLiteConnection.open(database, database.mConfigurationLocked);
+        mConnection = new SQLiteConnection(database, database.mConfigurationLocked);;
     }
 
     /**

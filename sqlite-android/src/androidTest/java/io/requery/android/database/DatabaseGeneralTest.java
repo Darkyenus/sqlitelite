@@ -20,16 +20,12 @@ package io.requery.android.database;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.CharArrayBuffer;
-import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteException;
 import android.os.Parcel;
-import android.util.Log;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
-import androidx.test.filters.SmallTest;
-import androidx.test.filters.Suppress;
 import io.requery.android.database.sqlite.SQLiteCursor;
 import io.requery.android.database.sqlite.SQLiteDatabase;
 import io.requery.android.database.sqlite.SQLitePreparedStatement;
@@ -126,11 +122,13 @@ public class DatabaseGeneralTest {
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", SQLiteDatabase.CONFLICT_NONE, values,
                 "_id=?", new Object[] { 1 }));
-        SQLiteCursor c = mDatabase.query("SELECT data FROM test WHERE _id=1");
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        String value = c.getString(0);
+        String value;
+        try (SQLiteCursor c = mDatabase.query("SELECT data FROM test WHERE _id=1")) {
+            assertNotNull(c);
+            assertEquals(1, c.getCount());
+            c.moveToFirst();
+            value = c.getString(0);
+        }
         assertEquals("this is an updated test", value);
     }
 
@@ -140,9 +138,10 @@ public class DatabaseGeneralTest {
         populateDefaultTable();
 
         assertEquals(1, mDatabase.delete("test", "_id=?", new Object[] { 1 }));
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1");
-        assertNotNull(c);
-        assertEquals(0, c.getCount());
+        try (SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1")) {
+            assertNotNull(c);
+            assertEquals(0, c.getCount());
+        }
     }
 
     private void phoneNumberCompare(String phone1, String phone2, boolean equal, 
@@ -172,85 +171,6 @@ public class DatabaseGeneralTest {
                 cursor.close();
             }
         }
-    }
-
-    private void assertPhoneNumberEqual(String phone1, String phone2) {
-        assertPhoneNumberEqual(phone1, phone2, true);
-        assertPhoneNumberEqual(phone1, phone2, false);
-    }
-    
-    private void assertPhoneNumberEqual(String phone1, String phone2, boolean useStrict) {
-        phoneNumberCompare(phone1, phone2, true, useStrict);
-    }
-
-    private void assertPhoneNumberNotEqual(String phone1, String phone2) {
-        assertPhoneNumberNotEqual(phone1, phone2, true);
-        assertPhoneNumberNotEqual(phone1, phone2, false);
-    }
-    
-    private void assertPhoneNumberNotEqual(String phone1, String phone2, boolean useStrict) {
-        phoneNumberCompare(phone1, phone2, false, useStrict);
-    }
-
-    /**
-     * Tests international matching issues for the PHONE_NUMBERS_EQUAL function.
-     */
-    @Suppress // PHONE_NUMBERS_EQUAL not supported
-    @SmallTest
-    @Test
-    public void testPhoneNumbersEqualInternationl() {
-        assertPhoneNumberEqual("1", "1");
-        assertPhoneNumberEqual("123123", "123123");
-        assertPhoneNumberNotEqual("123123", "923123");
-        assertPhoneNumberNotEqual("123123", "123129");
-        assertPhoneNumberNotEqual("123123", "1231234");
-        assertPhoneNumberNotEqual("123123", "0123123", false);
-        assertPhoneNumberNotEqual("123123", "0123123", true);
-        assertPhoneNumberEqual("650-253-0000", "6502530000");
-        assertPhoneNumberEqual("650-253-0000", "650 253 0000");
-        assertPhoneNumberEqual("650 253 0000", "6502530000");
-        assertPhoneNumberEqual("+1 650-253-0000", "6502530000");
-        assertPhoneNumberEqual("001 650-253-0000", "6502530000");
-        assertPhoneNumberEqual("0111 650-253-0000", "6502530000");
-
-        // Russian trunk digit
-        assertPhoneNumberEqual("+79161234567", "89161234567");
-
-        // French trunk digit
-        assertPhoneNumberEqual("+33123456789", "0123456789");
-
-        // Trunk digit for city codes in the Netherlands
-        assertPhoneNumberEqual("+31771234567", "0771234567");
-
-        // Test broken caller ID seen on call from Thailand to the US
-        assertPhoneNumberEqual("+66811234567", "166811234567");
-
-        // Test the same in-country number with different country codes
-        assertPhoneNumberNotEqual("+33123456789", "+1123456789");
-
-        // Test one number with country code and the other without
-        assertPhoneNumberEqual("5125551212", "+15125551212");
-
-        // Test two NANP numbers that only differ in the area code
-        assertPhoneNumberNotEqual("5125551212", "6505551212");
-
-        // Japanese phone numbers
-        assertPhoneNumberEqual("090-1234-5678", "+819012345678");
-        assertPhoneNumberEqual("090(1234)5678", "+819012345678");
-        assertPhoneNumberEqual("090-1234-5678", "+81-90-1234-5678");
-
-        // Equador
-        assertPhoneNumberEqual("+593(800)123-1234", "8001231234");
-        assertPhoneNumberEqual("+593-2-1234-123", "21234123");
-
-        // Two continuous 0 at the beginning of the phone string should not be
-        // treated as trunk prefix in the strict comparation.
-        assertPhoneNumberEqual("008001231234", "8001231234", false);
-        assertPhoneNumberNotEqual("008001231234", "8001231234", true);
-
-        // Confirm that the bug found before does not re-appear in the strict compalation
-        assertPhoneNumberEqual("080-1234-5678", "+819012345678", false);
-        assertPhoneNumberNotEqual("080-1234-5678", "+819012345678", true);
     }
 
     @MediumTest
@@ -362,179 +282,6 @@ public class DatabaseGeneralTest {
         c.close();
     }
 
-    @Suppress // unicode collator not supported yet
-    @MediumTest
-    @Test
-    public void testTokenize() {
-        mDatabase.execSQL("CREATE TABLE tokens (" +
-                "token TEXT COLLATE unicode," +
-                "source INTEGER," +
-                "token_index INTEGER," +
-                "tag TEXT" +
-                ");");
-        mDatabase.execSQL("CREATE TABLE tokens_no_index (" +
-                "token TEXT COLLATE unicode," +
-                "source INTEGER" +
-                ");");
-        
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT _TOKENIZE(NULL, NULL, NULL, NULL)", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', NULL, NULL, NULL)", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', 10, NULL, NULL)", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', 10, 'some string', NULL)", null));
-     
-        Assert.assertEquals(3, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', 11, 'some string ok', ' ', 1, 'foo')", null));
-        Assert.assertEquals(2, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', 11, 'second field', ' ', 1, 'bar')", null));
-
-        Assert.assertEquals(3, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens_no_index', 20, 'some string ok', ' ')", null));
-        Assert.assertEquals(3, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens_no_index', 21, 'foo bar baz', ' ', 0)", null));
-
-        // test Chinese
-        String chinese = "京仅 尽径惊";
-        Assert.assertEquals(2, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', 12,'" + chinese + "', ' ', 1)", null));
-        
-        String icustr = "Frédéric Hjønnevåg";
-        
-        Assert.assertEquals(2, longForQuery(mDatabase,
-                "SELECT _TOKENIZE('tokens', 13, '" + icustr + "', ' ', 1)", null));
-        
-        Assert.assertEquals(9, longForQuery(mDatabase,
-                "SELECT count(*) from tokens;", null));      
-
-        String key = DatabaseUtils.getHexCollationKey("Frederic Hjonneva");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));      
-        Assert.assertEquals(13, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        key = DatabaseUtils.getHexCollationKey("Hjonneva");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(13, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        
-        key = DatabaseUtils.getHexCollationKey("some string ok");
-        Assert.assertEquals(1,  longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(11, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals("foo", stringForQuery(mDatabase,
-                "SELECT tag from tokens where token GLOB '" + key + "*'", null));
-        key = DatabaseUtils.getHexCollationKey("string");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(11, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals("foo", stringForQuery(mDatabase,
-                "SELECT tag from tokens where token GLOB '" + key + "*'", null));
-        key = DatabaseUtils.getHexCollationKey("ok");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(11, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(2, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals("foo", stringForQuery(mDatabase,
-                "SELECT tag from tokens where token GLOB '" + key + "*'", null));
-
-        key = DatabaseUtils.getHexCollationKey("second field");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(11, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals("bar", stringForQuery(mDatabase,
-                "SELECT tag from tokens where token GLOB '" + key + "*'", null));
-        key = DatabaseUtils.getHexCollationKey("field");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(11, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals("bar", stringForQuery(mDatabase,
-                "SELECT tag from tokens where token GLOB '" + key + "*'", null));
-
-        key = DatabaseUtils.getHexCollationKey(chinese);
-        String[] a = new String[1];
-        a[0] = key;
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token= ?", a));
-        Assert.assertEquals(12, longForQuery(mDatabase,
-                "SELECT source from tokens where token= ?", a));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token= ?", a));
-        a[0] += "*";
-        Assert.assertEquals(1, longForQuery(mDatabase,
-             "SELECT count(*) from tokens where token GLOB ?", a));        
-        Assert.assertEquals(12, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB ?", a));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB ?", a));
-
-       Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token= '" + key + "'", null));
-       Assert.assertEquals(12, longForQuery(mDatabase,
-               "SELECT source from tokens where token= '" + key + "'", null));
-       Assert.assertEquals(0, longForQuery(mDatabase,
-               "SELECT token_index from tokens where token= '" + key + "'", null));
-        
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));        
-        Assert.assertEquals(12, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        
-        key = DatabaseUtils.getHexCollationKey("京仅");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(12, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        
-        key = DatabaseUtils.getHexCollationKey("尽径惊");
-        Log.d("DatabaseGeneralTest", "key = " + key);
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(12, longForQuery(mDatabase,
-                "SELECT source from tokens where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT token_index from tokens where token GLOB '" + key + "*'", null));
-        
-        Assert.assertEquals(0, longForQuery(mDatabase,
-                "SELECT count(*) from tokens where token GLOB 'ab*'", null));        
-
-        key = DatabaseUtils.getHexCollationKey("some string ok");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens_no_index where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(20, longForQuery(mDatabase,
-                "SELECT source from tokens_no_index where token GLOB '" + key + "*'", null));
-
-        key = DatabaseUtils.getHexCollationKey("bar");
-        Assert.assertEquals(1, longForQuery(mDatabase,
-                "SELECT count(*) from tokens_no_index where token GLOB '" + key + "*'", null));
-        Assert.assertEquals(21, longForQuery(mDatabase,
-                "SELECT source from tokens_no_index where token GLOB '" + key + "*'", null));
-    }
-    
     @MediumTest
     @Test
     public void testTransactions() {
@@ -577,33 +324,13 @@ public class DatabaseGeneralTest {
         // Test a two-level transaction.
         setNum(0);
         mDatabase.beginTransactionExclusive();
-        mDatabase.beginTransactionExclusive();
+        assertThrowsIllegalState(() -> {mDatabase.beginTransactionDeferred();});
+        assertThrowsIllegalState(() -> {mDatabase.beginTransactionImmediate();});
+        assertThrowsIllegalState(() -> {mDatabase.beginTransactionExclusive();});
         setNum(1);
-        mDatabase.setTransactionSuccessful();
-        mDatabase.endTransaction();
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
         checkNum(1);
-
-        // Test rolling back an inner transaction.
-        setNum(0);
-        mDatabase.beginTransactionExclusive();
-        mDatabase.beginTransactionExclusive();
-        setNum(1);
-        mDatabase.endTransaction();
-        mDatabase.setTransactionSuccessful();
-        mDatabase.endTransaction();
-        checkNum(0);
-
-        // Test rolling back an outer transaction.
-        setNum(0);
-        mDatabase.beginTransactionExclusive();
-        mDatabase.beginTransactionExclusive();
-        setNum(1);
-        mDatabase.setTransactionSuccessful();
-        mDatabase.endTransaction();
-        mDatabase.endTransaction();
-        checkNum(0);
     }
 
     private void setNum(int num) {
@@ -748,89 +475,6 @@ public class DatabaseGeneralTest {
         SQLiteCursor c1 = mDatabase.rawQuery(s1, new String[]{"2", "201", "900"});
         assertEquals(n, c1.getCount());
         c1.close();
-    }
-
-    /**
-     * This test is available only when the platform has a locale with the language "ja".
-     * It finishes without failure when it is not available.  
-     */
-    @Suppress
-    @MediumTest
-    @Test
-    public void testCollateLocalizedForJapanese() {
-        final String testName = "DatabaseGeneralTest#testCollateLocalizedForJapanese()";
-        final Locale[] localeArray = Locale.getAvailableLocales();
-        final String japanese = Locale.JAPANESE.getLanguage();
-        final String english = Locale.ENGLISH.getLanguage();
-        Locale japaneseLocale = null;
-        Locale englishLocale = null;
-        for (Locale locale : localeArray) {
-            if (locale != null) {
-                final String language = locale.getLanguage();
-                if (language.equals(japanese)) {
-                    japaneseLocale = locale;
-                } else if (language.equals(english)) {
-                    englishLocale = locale;
-                }
-            }
-            
-            if (japaneseLocale != null && englishLocale != null) {
-                break;
-            }
-        }
-
-        if (japaneseLocale == null || englishLocale == null) {
-            Log.d(TAG, testName + "n is silently skipped since " +
-                    (englishLocale == null ?
-                            japaneseLocale == null ?
-                                    "Both English and Japanese locales do not exist." :
-                                    "English locale does not exist." :
-                            "Japanese locale does not exist."));
-            return;
-        }
-
-        Locale originalLocale = Locale.getDefault();
-        try {
-
-            final String dbName = "collate_localized_test";
-            mDatabase.execSQL("CREATE TABLE " + dbName + " (" +
-                    "_id INTEGER PRIMARY KEY, " +
-                    "s TEXT COLLATE LOCALIZED) ");
-            //DatabaseUtils.InsertHelper ih =
-            //    new DatabaseUtils.InsertHelper(mDatabase, dbName);
-            ContentValues cv;
-
-            cv = new ContentValues();  //
-            cv.put("s", "ｵｷﾅﾜ");  // O-ki-na-wa in half-width Katakana
-            //ih.insert(cv);
-
-            cv = new ContentValues();  //
-            cv.put("s", "にほん");  // Ni-ho-n in Hiragana
-            //ih.insert(cv);
-
-            cv = new ContentValues();  //
-            cv.put("s", "アメリカ");  // A-me-ri-ca in hull-width Katakana
-            //ih.insert(cv);
-
-            // Assume setLocale() does REINDEX and an English locale does not consider
-            // Japanese-specific LOCALIZED order.
-            Locale.setDefault(englishLocale);
-            Locale.setDefault(japaneseLocale);
-
-            SQLiteCursor cur = mDatabase.rawQuery(
-                    "SELECT * FROM " + dbName + " ORDER BY s", null);
-            assertTrue(cur.moveToFirst());
-            assertEquals("アメリカ", cur.getString(1));
-            assertTrue(cur.moveToNext());
-            assertEquals("ｵｷﾅﾜ", cur.getString(1));
-            assertTrue(cur.moveToNext());
-            assertEquals("にほん", cur.getString(1));
-        } finally {
-            try {
-                Locale.setDefault(originalLocale);
-            } catch (Exception ignored) {
-            }
-        }
     }
 
     @LargeTest
