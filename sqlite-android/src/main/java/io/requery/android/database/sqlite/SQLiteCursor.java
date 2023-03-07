@@ -47,6 +47,15 @@ public class SQLiteCursor implements Closeable {
     /** The number of rows that can fit in the cursor window, 0 if unknown */
     private int mCursorWindowCapacity;
 
+    /**
+     * The cursor window owned by this cursor.
+     */
+    protected CursorWindow mWindow;
+
+    protected int mPos = -1;
+
+    protected boolean mClosed;
+
     /** Used to find out where a cursor was allocated in case it never got released. */
     private final CloseGuard mCloseGuard;
 
@@ -79,29 +88,6 @@ public class SQLiteCursor implements Closeable {
         return mQuery.getDatabase();
     }
 
-    /**
-     * This function is called every time the cursor is successfully scrolled
-     * to a new position, giving the subclass a chance to update any state it
-     * may have.  If it returns false the move function will also do so and the
-     * cursor will scroll to the beforeFirst position.
-     * <p>
-     * This function should be called by methods such as {@link #moveToPosition(int)},
-     * so it will typically not be called from outside of the cursor class itself.
-     * </p>
-     *
-     * @param newPosition The position that we're moving to.
-     * @return True if the move is successful, false otherwise.
-     */
-    public boolean onMove(int newPosition) {
-        // Make sure the row at newPosition is present in the window
-        if (mWindow == null || newPosition < mWindow.getStartPosition() ||
-                newPosition >= (mWindow.getStartPosition() + mWindow.getNumRows())) {
-            fillWindow(newPosition);
-        }
-
-        return true;
-    }
-
     public int getCount() {
         if (mCount == NO_COUNT) {
             fillWindow(0);
@@ -109,8 +95,7 @@ public class SQLiteCursor implements Closeable {
         return mCount;
     }
 
-    public static int cursorPickFillWindowStartPosition(
-        int cursorPosition, int cursorWindowCapacity) {
+    public static int cursorPickFillWindowStartPosition(int cursorPosition, int cursorWindowCapacity) {
         return Math.max(cursorPosition - cursorWindowCapacity / 3, 0);
     }
 
@@ -126,8 +111,7 @@ public class SQLiteCursor implements Closeable {
                     Log.d(TAG, "received count(*) from native_fill_window: " + mCount);
                 }
             } else {
-                int startPos = cursorPickFillWindowStartPosition(requiredPos,
-                        mCursorWindowCapacity);
+                int startPos = cursorPickFillWindowStartPosition(requiredPos, mCursorWindowCapacity);
                 mQuery.fillWindow(mWindow, startPos, requiredPos, false);
             }
         } catch (RuntimeException ex) {
@@ -200,14 +184,6 @@ public class SQLiteCursor implements Closeable {
             } catch(Exception ignored) { }
         }
     }
-
-
-
-
-    /**
-     * The cursor window owned by this cursor.
-     */
-    protected CursorWindow mWindow;
 
     public byte[] getBlob(int columnIndex) {
         checkPosition();
@@ -310,9 +286,6 @@ public class SQLiteCursor implements Closeable {
         closeWindow();
     }
 
-    protected int mPos = -1;
-
-    protected boolean mClosed;
 
 
     public boolean isClosed() {
@@ -343,7 +316,13 @@ public class SQLiteCursor implements Closeable {
             return true;
         }
 
-        boolean result = onMove(position);
+        // Make sure the row at newPosition is present in the window
+        if (mWindow == null || position < mWindow.getStartPosition() ||
+                position >= (mWindow.getStartPosition() + mWindow.getNumRows())) {
+            fillWindow(position);
+        }
+
+        boolean result = true;
         if (!result) {
             mPos = -1;
         } else {
@@ -353,25 +332,12 @@ public class SQLiteCursor implements Closeable {
         return result;
     }
 
-    public final boolean move(int offset) {
-        return moveToPosition(mPos + offset);
-    }
-
     public final boolean moveToFirst() {
         return moveToPosition(0);
     }
 
     public final boolean moveToNext() {
         return moveToPosition(mPos + 1);
-    }
-
-    public final boolean isFirst() {
-        return mPos == 0 && getCount() != 0;
-    }
-
-    public final boolean isLast() {
-        int cnt = getCount();
-        return mPos == (cnt - 1) && cnt != 0;
     }
 
     public final boolean isBeforeFirst() {

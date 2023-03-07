@@ -23,7 +23,6 @@ package io.requery.android.database.sqlite;
 
 import android.annotation.SuppressLint;
 import android.database.sqlite.SQLiteException;
-import android.database.sqlite.SQLiteTransactionListener;
 import android.os.CancellationSignal;
 import android.os.OperationCanceledException;
 import io.requery.android.database.CursorWindow;
@@ -90,9 +89,6 @@ import org.jetbrains.annotations.NotNull;
  * including all of its nested transactions will be rolled back
  * when the outermost transaction is ended.
  * </p><p>
- * When a transaction is started, the client can provide a {@link SQLiteTransactionListener}
- * to listen for notifications of transaction-related events.
- * </p><p>
  * Recommended usage:
  * <code><pre>
  * // First, begin the transaction.
@@ -158,8 +154,8 @@ import org.jetbrains.annotations.NotNull;
 public final class SQLiteSession {
 
     private final SQLiteConnection mConnection;
-    private Transaction mTransactionPool;
-    private Transaction mTransactionStack;
+    private boolean inTransaction = false;
+    private boolean transactionSuccessful = false;
 
     /**
      * Transaction mode: Deferred.
@@ -224,16 +220,7 @@ public final class SQLiteSession {
      * @return True if the session has a transaction in progress.
      */
     public boolean hasTransaction() {
-        return mTransactionStack != null;
-    }
-
-    /**
-     * Returns true if the session has a nested transaction in progress.
-     *
-     * @return True if the session has a nested transaction in progress.
-     */
-    public boolean hasNestedTransaction() {
-        return mTransactionStack != null && mTransactionStack.mParent != null;
+        return inTransaction;
     }
 
     /**
@@ -254,7 +241,6 @@ public final class SQLiteSession {
      * @param transactionMode The transaction mode.  One of: {@link #TRANSACTION_MODE_DEFERRED},
      * {@link #TRANSACTION_MODE_IMMEDIATE}, or {@link #TRANSACTION_MODE_EXCLUSIVE}.
      * Ignored when creating a nested transaction.
-     * @param transactionListener The transaction listener, or null if none.
      * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
      *
      * @throws IllegalStateException if {@link #setTransactionSuccessful} has already been
@@ -265,55 +251,29 @@ public final class SQLiteSession {
      * @see #setTransactionSuccessful
      * @see #endTransaction
      */
-    public void beginTransaction(int transactionMode,
-                                 SQLiteTransactionListener transactionListener,
-                                 CancellationSignal cancellationSignal) {
-        throwIfTransactionMarkedSuccessful();
-        beginTransactionUnchecked(transactionMode, transactionListener, cancellationSignal);
-    }
-
-    private void beginTransactionUnchecked(int transactionMode,
-            SQLiteTransactionListener transactionListener,
-                                           CancellationSignal cancellationSignal) {
+    public void beginTransaction(int transactionMode, CancellationSignal cancellationSignal) {
+        if (inTransaction) {
+            throw new IllegalStateException("Can't begin nested transaction");
+        }
         if (cancellationSignal != null) {
             cancellationSignal.throwIfCanceled();
         }
 
-        // Set up the transaction such that we can back out safely
-        // in case we fail part way.
-        if (mTransactionStack == null) {
-            // Execute SQL might throw a runtime exception.
-            switch (transactionMode) {
-                case TRANSACTION_MODE_IMMEDIATE:
-                    mConnection.execute("BEGIN IMMEDIATE;", null,
-                            cancellationSignal); // might throw
-                    break;
-                case TRANSACTION_MODE_EXCLUSIVE:
-                    mConnection.execute("BEGIN EXCLUSIVE;", null,
-                            cancellationSignal); // might throw
-                    break;
-                default:
-                    mConnection.execute("BEGIN;", null, cancellationSignal); // might throw
-                    break;
-            }
+        // Execute SQL might throw a runtime exception.
+        switch (transactionMode) {
+            case TRANSACTION_MODE_IMMEDIATE:
+                mConnection.execute("BEGIN IMMEDIATE;", null, cancellationSignal); // might throw
+                break;
+            case TRANSACTION_MODE_EXCLUSIVE:
+                mConnection.execute("BEGIN EXCLUSIVE;", null, cancellationSignal); // might throw
+                break;
+            default:
+                mConnection.execute("BEGIN;", null, cancellationSignal); // might throw
+                break;
         }
 
-        // Listener might throw a runtime exception.
-        if (transactionListener != null) {
-            try {
-                transactionListener.onBegin(); // might throw
-            } catch (RuntimeException ex) {
-                if (mTransactionStack == null) {
-                    mConnection.execute("ROLLBACK;", null, cancellationSignal); // might throw
-                }
-                throw ex;
-            }
-        }
-
-        // Bookkeeping can't throw, except an OOM, which is just too bad...
-        Transaction transaction = obtainTransaction(transactionMode, transactionListener);
-        transaction.mParent = mTransactionStack;
-        mTransactionStack = transaction;
+        inTransaction = true;
+        transactionSuccessful = false;
     }
 
     /**
@@ -332,10 +292,13 @@ public final class SQLiteSession {
      * @see #endTransaction
      */
     public void setTransactionSuccessful() {
-        throwIfNoTransaction();
-        throwIfTransactionMarkedSuccessful();
-
-        mTransactionStack.mMarkedSuccessful = true;
+        if (!inTransaction) {
+            throw new IllegalStateException("No transaction to mark successful");
+        }
+        if (transactionSuccessful) {
+            throw new IllegalStateException("Transaction is already successful");
+        }
+        transactionSuccessful = true;
     }
 
     /**
@@ -348,8 +311,6 @@ public final class SQLiteSession {
      * This method must be called exactly once for each call to {@link #beginTransaction}.
      * </p>
      *
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     *
      * @throws IllegalStateException if there is no current transaction.
      * @throws SQLiteException if an error occurs.
      * @throws OperationCanceledException if the operation was canceled.
@@ -357,53 +318,16 @@ public final class SQLiteSession {
      * @see #beginTransaction
      * @see #setTransactionSuccessful
      */
-    public void endTransaction(CancellationSignal cancellationSignal) {
-        throwIfNoTransaction();
-        assert mConnection != null;
-
-        endTransactionUnchecked(cancellationSignal);
-    }
-
-    private void endTransactionUnchecked(CancellationSignal cancellationSignal) {
-        if (cancellationSignal != null) {
-            cancellationSignal.throwIfCanceled();
+    public void endTransaction() {
+        if (!inTransaction) {
+            throw new IllegalStateException("No transaction in progress to end");
         }
 
-        final Transaction top = mTransactionStack;
-        boolean successful = top.mMarkedSuccessful && !top.mChildFailed;
-
-        RuntimeException listenerException = null;
-        final SQLiteTransactionListener listener = top.mListener;
-        if (listener != null) {
-            try {
-                if (successful) {
-                    listener.onCommit(); // might throw
-                } else {
-                    listener.onRollback(); // might throw
-                }
-            } catch (RuntimeException ex) {
-                listenerException = ex;
-                successful = false;
-            }
-        }
-
-        mTransactionStack = top.mParent;
-        recycleTransaction(top);
-
-        if (mTransactionStack != null) {
-            if (!successful) {
-                mTransactionStack.mChildFailed = true;
-            }
+        inTransaction = false;
+        if (transactionSuccessful) {
+            mConnection.execute("COMMIT;", null, null); // might throw
         } else {
-            if (successful) {
-                mConnection.execute("COMMIT;", null, cancellationSignal); // might throw
-            } else {
-                mConnection.execute("ROLLBACK;", null, cancellationSignal); // might throw
-            }
-        }
-
-        if (listenerException != null) {
-            throw listenerException;
+            mConnection.execute("ROLLBACK;", null, null); // might throw
         }
     }
 
@@ -430,12 +354,7 @@ public final class SQLiteSession {
      * @throws SQLiteException if an error occurs, such as a syntax error.
      * @throws OperationCanceledException if the operation was canceled.
      */
-    public void prepare(String sql, CancellationSignal cancellationSignal,
-            SQLiteStatementInfo outStatementInfo) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
+    public void prepare(String sql, CancellationSignal cancellationSignal, SQLiteStatementInfo outStatementInfo) {
         if (cancellationSignal != null) {
             cancellationSignal.throwIfCanceled();
         }
@@ -454,16 +373,7 @@ public final class SQLiteSession {
      * or invalid number of bind arguments.
      * @throws OperationCanceledException if the operation was canceled.
      */
-    public void execute(String sql, Object[] bindArgs,
-            CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
-        if (executeSpecial(sql, bindArgs, cancellationSignal)) {
-            return;
-        }
-
+    public void execute(String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
         mConnection.execute(sql, bindArgs, cancellationSignal); // might throw
     }
 
@@ -481,14 +391,6 @@ public final class SQLiteSession {
      * @throws OperationCanceledException if the operation was canceled.
      */
     public long executeForLong(String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
-        if (executeSpecial(sql, bindArgs, cancellationSignal)) {
-            return 0;
-        }
-
         return mConnection.executeForLong(sql, bindArgs, cancellationSignal); // might throw
     }
 
@@ -506,14 +408,6 @@ public final class SQLiteSession {
      * @throws OperationCanceledException if the operation was canceled.
      */
     public String executeForString(String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
-        if (executeSpecial(sql, bindArgs, cancellationSignal)) {
-            return null;
-        }
-
         return mConnection.executeForString(sql, bindArgs, cancellationSignal); // might throw
     }
 
@@ -530,18 +424,8 @@ public final class SQLiteSession {
      * or invalid number of bind arguments.
      * @throws OperationCanceledException if the operation was canceled.
      */
-    public int executeForChangedRowCount(String sql, Object[] bindArgs,
-                                         CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
-        if (executeSpecial(sql, bindArgs, cancellationSignal)) {
-            return 0;
-        }
-
-        return mConnection.executeForChangedRowCount(sql, bindArgs,
-                cancellationSignal); // might throw
+    public int executeForChangedRowCount(String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
+        return mConnection.executeForChangedRowCount(sql, bindArgs, cancellationSignal); // might throw
     }
 
     /**
@@ -558,16 +442,7 @@ public final class SQLiteSession {
      * @throws OperationCanceledException if the operation was canceled.
      */
     public long executeForLastInsertedRowId(String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
-        if (executeSpecial(sql, bindArgs, cancellationSignal)) {
-            return 0;
-        }
-
-        return mConnection.executeForLastInsertedRowId(sql, bindArgs,
-                cancellationSignal); // might throw
+        return mConnection.executeForLastInsertedRowId(sql, bindArgs, cancellationSignal); // might throw
     }
 
     /**
@@ -596,117 +471,12 @@ public final class SQLiteSession {
                                       CursorWindow window, int startPos, int requiredPos,
                                       boolean countAllRows,
                                       CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-        if (window == null) {
-            throw new IllegalArgumentException("window must not be null.");
-        }
-
-        if (executeSpecial(sql, bindArgs, cancellationSignal)) {
-            window.clear();
-            return 0;
-        }
-
         return mConnection.executeForCursorWindow(sql, bindArgs,
                 window, startPos, requiredPos, countAllRows,
                 cancellationSignal); // might throw
     }
 
-    /**
-     * Performs special reinterpretation of certain SQL statements such as "BEGIN",
-     * "COMMIT" and "ROLLBACK" to ensure that transaction state invariants are
-     * maintained.
-     *
-     * This function is mainly used to support legacy apps that perform their
-     * own transactions by executing raw SQL rather than calling {@link #beginTransaction}
-     * and the like.
-     *
-     * @param sql The SQL statement to execute.
-     * @param bindArgs The arguments to bind, or null if none.
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     * @return True if the statement was of a special form that was handled here,
-     * false otherwise.
-     *
-     * @throws SQLiteException if an error occurs, such as a syntax error
-     * or invalid number of bind arguments.
-     * @throws OperationCanceledException if the operation was canceled.
-     */
-    private boolean executeSpecial(String sql, Object[] bindArgs,
-                                   CancellationSignal cancellationSignal) {
-        if (cancellationSignal != null) {
-            cancellationSignal.throwIfCanceled();
-        }
-
-        final int type = SQLiteStatementType.getSqlStatementType(sql);
-        switch (type) {
-            case SQLiteStatementType.STATEMENT_BEGIN:
-                throw new IllegalArgumentException("Can't execute special SQL, call appropriate method instead: "+sql);
-                //beginTransaction(TRANSACTION_MODE_EXCLUSIVE, null, cancellationSignal);
-
-            case SQLiteStatementType.STATEMENT_COMMIT:
-                throw new IllegalArgumentException("Can't execute special SQL, call appropriate method instead: "+sql);
-                //setTransactionSuccessful();
-                //endTransaction(cancellationSignal);
-            case SQLiteStatementType.STATEMENT_ABORT:
-                throw new IllegalArgumentException("Can't execute special SQL, call appropriate method instead: "+sql);
-                //endTransaction(cancellationSignal);
-        }
-        return false;
-    }
-
-    private void throwIfNoTransaction() {
-        if (mTransactionStack == null) {
-            throw new IllegalStateException("Cannot perform this operation because "
-                    + "there is no current transaction.");
-        }
-    }
-
-    private void throwIfTransactionMarkedSuccessful() {
-        if (mTransactionStack != null && mTransactionStack.mMarkedSuccessful) {
-            throw new IllegalStateException("Cannot perform this operation because "
-                    + "the transaction has already been marked successful.  The only "
-                    + "thing you can do now is call endTransaction().");
-        }
-    }
-
-    private void throwIfNestedTransaction() {
-        if (hasNestedTransaction()) {
-            throw new IllegalStateException("Cannot perform this operation because "
-                    + "a nested transaction is in progress.");
-        }
-    }
-
-    private Transaction obtainTransaction(int mode, SQLiteTransactionListener listener) {
-        Transaction transaction = mTransactionPool;
-        if (transaction != null) {
-            mTransactionPool = transaction.mParent;
-            transaction.mParent = null;
-            transaction.mMarkedSuccessful = false;
-            transaction.mChildFailed = false;
-        } else {
-            transaction = new Transaction();
-        }
-        transaction.mMode = mode;
-        transaction.mListener = listener;
-        return transaction;
-    }
-
-    private void recycleTransaction(Transaction transaction) {
-        transaction.mParent = mTransactionPool;
-        transaction.mListener = null;
-        mTransactionPool = transaction;
-    }
-
     public void close() {
         mConnection.close();
-    }
-
-    private static final class Transaction {
-        public Transaction mParent;
-        public int mMode;
-        public SQLiteTransactionListener mListener;
-        public boolean mMarkedSuccessful;
-        public boolean mChildFailed;
     }
 }

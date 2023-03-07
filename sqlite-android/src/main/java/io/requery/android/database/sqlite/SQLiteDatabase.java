@@ -328,7 +328,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * </pre>
      */
     public void beginTransactionExclusive() {
-        beginTransaction(null, SQLiteSession.TRANSACTION_MODE_EXCLUSIVE);
+        beginTransaction(SQLiteSession.TRANSACTION_MODE_EXCLUSIVE);
     }
 
     /**
@@ -352,85 +352,20 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * </pre>
      */
     public void beginTransactionImmediate() {
-        beginTransaction(null, SQLiteSession.TRANSACTION_MODE_IMMEDIATE);
+        beginTransaction(SQLiteSession.TRANSACTION_MODE_IMMEDIATE);
     }
 
     /**
      * Begins a transaction in DEFERRED mode.
      */
     public void beginTransactionDeferred() {
-        beginTransaction(null, SQLiteSession.TRANSACTION_MODE_DEFERRED);
+        beginTransaction(SQLiteSession.TRANSACTION_MODE_DEFERRED);
     }
 
-    /**
-     * Begins a transaction in DEFERRED mode.
-     *
-     * @param transactionListener listener that should be notified when the transaction begins,
-     * commits, or is rolled back
-     */
-    public void beginTransactionDeferred(SQLiteTransactionListener transactionListener) {
-        beginTransaction(transactionListener, SQLiteSession.TRANSACTION_MODE_DEFERRED);
-    }
-
-    /**
-     * Begins a transaction in EXCLUSIVE mode.
-     * <p>
-     * Transactions can be nested.
-     * When the outer transaction is ended all of
-     * the work done in that transaction and all of the nested transactions will be committed or
-     * rolled back. The changes will be rolled back if any transaction is ended without being
-     * marked as clean (by calling setTransactionSuccessful). Otherwise they will be committed.
-     * </p>
-     * <p>Here is the standard idiom for transactions:
-     *
-     * <pre>
-     *   db.beginTransactionWithListener(listener);
-     *   try {
-     *     ...
-     *     db.setTransactionSuccessful();
-     *   } finally {
-     *     db.endTransaction();
-     *   }
-     * </pre>
-     *
-     * @param transactionListener listener that should be notified when the transaction begins,
-     * commits, or is rolled back
-     */
-    public void beginTransactionExclusive(SQLiteTransactionListener transactionListener) {
-        beginTransaction(transactionListener, SQLiteSession.TRANSACTION_MODE_EXCLUSIVE);
-    }
-
-    /**
-     * Begins a transaction in IMMEDIATE mode. Transactions can be nested. When
-     * the outer transaction is ended all of the work done in that transaction
-     * and all of the nested transactions will be committed or rolled back. The
-     * changes will be rolled back if any transaction is ended without being
-     * marked as clean (by calling setTransactionSuccessful). Otherwise they
-     * will be committed.
-     * <p>
-     * Here is the standard idiom for transactions:
-     *
-     * <pre>
-     *   db.beginTransactionWithListenerNonExclusive(listener);
-     *   try {
-     *     ...
-     *     db.setTransactionSuccessful();
-     *   } finally {
-     *     db.endTransaction();
-     *   }
-     * </pre>
-     *
-     * @param transactionListener listener that should be notified when the
-     *            transaction begins, commits, or is rolled back
-     */
-    public void beginTransactionImmediate(SQLiteTransactionListener transactionListener) {
-        beginTransaction(transactionListener, SQLiteSession.TRANSACTION_MODE_IMMEDIATE);
-    }
-
-    private void beginTransaction(SQLiteTransactionListener transactionListener, int mode) {
+    private void beginTransaction(int mode) {
         acquireReference();
         try {
-            mSession.beginTransaction(mode, transactionListener, null);
+            mSession.beginTransaction(mode, null);
         } finally {
             releaseReference();
         }
@@ -443,7 +378,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public void endTransaction() {
         acquireReference();
         try {
-            mSession.endTransaction(null);
+            mSession.endTransaction();
         } finally {
             releaseReference();
         }
@@ -453,7 +388,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
         acquireReference();
         try {
             mSession.setTransactionSuccessful();
-            mSession.endTransaction(null);
+            mSession.endTransaction();
         } finally {
             releaseReference();
         }
@@ -588,13 +523,9 @@ public final class SQLiteDatabase extends SQLiteClosable {
         File dir = file.getParentFile();
         if (dir != null) {
             final String prefix = file.getName() + "-mj";
-            final FileFilter filter = new FileFilter() {
-                @Override
-                public boolean accept(File candidate) {
-                    return candidate.getName().startsWith(prefix);
-                }
-            };
-            for (File masterJournal : dir.listFiles(filter)) {
+            final FileFilter filter = candidate -> candidate.getName().startsWith(prefix);
+            final File[] files = dir.listFiles(filter);
+            for (File masterJournal : files) {
                 deleted |= masterJournal.delete();
             }
         }
