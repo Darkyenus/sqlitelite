@@ -28,10 +28,11 @@ import android.database.sqlite.SQLiteDatabaseLockedException;
 import android.database.sqlite.SQLiteException;
 import android.os.CancellationSignal;
 import android.os.OperationCanceledException;
-import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.util.LruCache;
 import io.requery.android.database.CursorWindow;
+
+import static com.darkyen.sqlite.SQLiteNative.*;
 
 /**
  * Represents a SQLite database connection.
@@ -87,10 +88,9 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
 
     private final CloseGuard mCloseGuard = CloseGuard.get();
 
-    private final SQLiteConnectionPool mPool;
     private final SQLiteDatabaseConfiguration mConfiguration;
-    private final int mConnectionId;
-    private final boolean mIsPrimaryConnection;
+    private static int nextConnectionId = 1;
+    private final int mConnectionId = nextConnectionId++;
     private final boolean mIsReadOnlyConnection;
     private final PreparedStatementCache mPreparedStatementCache;
     private PreparedStatement mPreparedStatementPool;
@@ -108,46 +108,8 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     @Deprecated//("No longer used")
     private int mCancellationSignalAttachCount;
 
-    private static native long nativeOpen(String path, int openFlags, String label);
-    private static native void nativeClose(long connectionPtr);
-    private static native long nativePrepareStatement(long connectionPtr, String sql);
-    private static native void nativeFinalizeStatement(long connectionPtr, long statementPtr);
-    private static native int nativeGetParameterCount(long connectionPtr, long statementPtr);
-    private static native boolean nativeIsReadOnly(long connectionPtr, long statementPtr);
-    private static native int nativeGetColumnCount(long connectionPtr, long statementPtr);
-    private static native String nativeGetColumnName(long connectionPtr, long statementPtr,
-            int index);
-    private static native void nativeBindNull(long connectionPtr, long statementPtr,
-            int index);
-    private static native void nativeBindLong(long connectionPtr, long statementPtr,
-            int index, long value);
-    private static native void nativeBindDouble(long connectionPtr, long statementPtr,
-            int index, double value);
-    private static native void nativeBindString(long connectionPtr, long statementPtr,
-            int index, String value);
-    private static native void nativeBindBlob(long connectionPtr, long statementPtr,
-            int index, byte[] value);
-    private static native void nativeResetStatementAndClearBindings(
-            long connectionPtr, long statementPtr);
-    private static native void nativeExecute(long connectionPtr, long statementPtr);
-    private static native long nativeExecuteForLong(long connectionPtr, long statementPtr);
-    private static native String nativeExecuteForString(long connectionPtr, long statementPtr);
-    private static native int nativeExecuteForChangedRowCount(long connectionPtr, long statementPtr);
-    private static native long nativeExecuteForLastInsertedRowId(
-            long connectionPtr, long statementPtr);
-    private static native long nativeExecuteForCursorWindow(
-            long connectionPtr, long statementPtr, long winPtr,
-            int startPos, int requiredPos, boolean countAllRows);
-    private static native void nativeInterrupt(long connectionPtr);
-
-
-    private SQLiteConnection(SQLiteConnectionPool pool,
-            SQLiteDatabaseConfiguration configuration,
-            int connectionId, boolean primaryConnection) {
-        mPool = pool;
-        mConfiguration = new SQLiteDatabaseConfiguration(configuration);
-        mConnectionId = connectionId;
-        mIsPrimaryConnection = primaryConnection;
+    private SQLiteConnection(SQLiteDatabaseConfiguration configuration) {
+        mConfiguration = configuration;
         mIsReadOnlyConnection = (configuration.openFlags & SQLiteDatabase.OPEN_READONLY) != 0;
         mPreparedStatementCache = new PreparedStatementCache(
                 mConfiguration.maxSqlCacheSize);
@@ -157,10 +119,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     @Override
     protected void finalize() throws Throwable {
         try {
-            if (mPool != null && mConnectionPtr != 0) {
-                mPool.onConnectionLeaked();
-            }
-
             dispose(true);
         } finally {
             super.finalize();
@@ -168,11 +126,8 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     }
 
     // Called by SQLiteConnectionPool only.
-    static SQLiteConnection open(SQLiteConnectionPool pool,
-            SQLiteDatabaseConfiguration configuration,
-            int connectionId, boolean primaryConnection) {
-        SQLiteConnection connection = new SQLiteConnection(pool, configuration,
-                connectionId, primaryConnection);
+    static SQLiteConnection open(SQLiteDatabaseConfiguration configuration) {
+        SQLiteConnection connection = new SQLiteConnection(configuration);
         try {
             connection.open();
             return connection;
@@ -291,14 +246,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     // Returns true if the prepared statement cache contains the specified SQL.
     boolean isPreparedStatementInCache(String sql) {
         return mPreparedStatementCache.get(sql) != null;
-    }
-
-    /**
-     * Returns true if this is the primary database connection.
-     * @return True if this is the primary database connection.
-     */
-    public boolean isPrimaryConnection() {
-        return mIsPrimaryConnection;
     }
 
     /**

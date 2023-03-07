@@ -49,6 +49,11 @@ namespace android {
  */
 static const int BUSY_TIMEOUT_MS = 2500;
 
+// Limit heap to 8MB for now.  This is 4 times the maximum cursor window
+// size, as has been used by the original code in SQLiteDatabase for
+// a long time.
+static const int SOFT_HEAP_LIMIT = 8 * 1024 * 1024;
+
 static JavaVM *gpJavaVM = 0;
 
 static struct {
@@ -72,6 +77,47 @@ struct SQLiteConnection {
         free(label);
     }
 };
+
+
+// Called each time a message is logged.
+static void sqliteLogCallback(void* data, int iErrCode, const char* zMsg) {
+    bool verboseLog = !!data;
+    if (iErrCode == 0 || iErrCode == SQLITE_CONSTRAINT || iErrCode == SQLITE_SCHEMA) {
+        if (verboseLog) {
+            ALOG(LOG_VERBOSE, SQLITE_LOG_TAG, "(%d) %s\n", iErrCode, zMsg);
+        }
+    } else {
+        ALOG(LOG_ERROR, SQLITE_LOG_TAG, "(%d) %s\n", iErrCode, zMsg);
+    }
+}
+
+// Sets the global SQLite configuration.
+// This must be called before any other SQLite functions are called.
+static void sqliteInitialize() {
+    // Enable multi-threaded mode.  In this mode, SQLite is safe to use by multiple
+    // threads as long as no two threads use the same database connection at the same
+    // time (which we guarantee in the SQLite database wrappers).
+    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
+
+    // Redirect SQLite log messages to the Android log.
+#if 0
+    bool verboseLog = android_util_Log_isVerboseLogEnabled(SQLITE_LOG_TAG);
+#endif
+    bool verboseLog = false;
+    sqlite3_config(SQLITE_CONFIG_LOG, &sqliteLogCallback, verboseLog ? (void*)1 : NULL);
+
+    // The soft heap limit prevents the page cache allocations from growing
+    // beyond the given limit, no matter what the max page cache sizes are
+    // set to. The limit does not, as of 3.5.0, affect any other allocations.
+    sqlite3_soft_heap_limit(SOFT_HEAP_LIMIT);
+
+    // Initialize SQLite.
+    sqlite3_initialize();
+}
+
+static jint nativeReleaseMemory(JNIEnv* env, jclass clazz) {
+    return sqlite3_release_memory(SOFT_HEAP_LIMIT);
+}
 
 static jlong nativeOpen(JNIEnv* env, jclass clazz, jstring pathStr, jint openFlags,
         jstring labelStr) {
@@ -606,21 +652,10 @@ static JNINativeMethod sMethods[] =
             (void*)nativeExecuteForCursorWindow },
     { "nativeInterrupt", "(J)V",
             (void*)nativeInterrupt },
+    { "nativeReleaseMemory", "()I",
+            (void*)nativeReleaseMemory },
 };
 
-int register_android_database_SQLiteConnection(JNIEnv *env)
-{
-    jclass clazz;
-    FIND_CLASS(clazz, "java/lang/String");
-    gStringClassInfo.clazz = jclass(env->NewGlobalRef(clazz));
-
-    return jniRegisterNativeMethods(env,
-        "io/requery/android/database/sqlite/SQLiteConnection",
-        sMethods, NELEM(sMethods)
-    );
-}
-
-extern int register_android_database_SQLiteGlobal(JNIEnv *env);
 extern int register_android_database_CursorWindow(JNIEnv *env);
 
 } // namespace android
@@ -631,8 +666,17 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
   android::gpJavaVM = vm;
   vm->GetEnv((void**)&env, JNI_VERSION_1_4);
 
-  android::register_android_database_SQLiteConnection(env);
-  android::register_android_database_SQLiteGlobal(env);
+  jclass clazz;
+  FIND_CLASS(clazz, "java/lang/String");
+  android::gStringClassInfo.clazz = jclass(env->NewGlobalRef(clazz));
+
+  jniRegisterNativeMethods(env,
+      "com/darkyen/sqlite/SQLiteNative",
+      android::sMethods, NELEM(android::sMethods)
+  );
+
+  android::sqliteInitialize();
+
   android::register_android_database_CursorWindow(env);
 
   return JNI_VERSION_1_4;

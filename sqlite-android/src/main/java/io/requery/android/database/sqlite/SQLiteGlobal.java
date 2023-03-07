@@ -21,6 +21,8 @@
 
 package io.requery.android.database.sqlite;
 
+import static com.darkyen.sqlite.SQLiteNative.nativeReleaseMemory;
+
 /**
  * Provides access to SQLite functions that affect all database connection,
  * such as memory management.
@@ -31,8 +33,6 @@ package io.requery.android.database.sqlite;
  * code has a chance to run.
  */
 public final class SQLiteGlobal {
-
-    private static native int nativeReleaseMemory();
 
     private SQLiteGlobal() {
     }

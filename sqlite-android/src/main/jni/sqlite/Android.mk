@@ -52,8 +52,7 @@ endif
 
 LOCAL_SRC_FILES:= \
 	android_database_SQLiteCommon.cpp \
-	android_database_SQLiteConnection.cpp \
-	android_database_SQLiteGlobal.cpp \
+	SQLiteNative.cpp \
 	android_database_CursorWindow.cpp \
 	CursorWindow.cpp \
 	JNIHelp.cpp \

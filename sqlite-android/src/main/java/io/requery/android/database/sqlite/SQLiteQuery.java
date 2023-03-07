@@ -62,7 +62,7 @@ public final class SQLiteQuery extends SQLiteProgram {
             window.acquireReference();
             try {
                 return getSession().executeForCursorWindow(getSql(), getBindArgs(),
-                        window, startPos, requiredPos, countAllRows, getConnectionFlags(),
+                        window, startPos, requiredPos, countAllRows,
                         mCancellationSignal);
             } catch (SQLiteDatabaseCorruptException ex) {
                 onCorruption();

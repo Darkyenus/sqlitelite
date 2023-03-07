@@ -55,9 +55,7 @@ public abstract class SQLiteProgram extends SQLiteClosable {
             default:
                 boolean assumeReadOnly = (n == SQLiteStatementType.STATEMENT_SELECT);
                 SQLiteStatementInfo info = new SQLiteStatementInfo();
-                db.getThreadSession().prepare(mSql,
-                        db.getThreadDefaultConnectionFlags(assumeReadOnly),
-                        cancellationSignalForPrepare, info);
+                db.mSession.prepare(mSql, cancellationSignalForPrepare, info);
                 mReadOnly = info.readOnly;
                 mColumnNames = info.columnNames;
                 mNumParameters = info.numParameters;
@@ -98,12 +96,7 @@ public abstract class SQLiteProgram extends SQLiteClosable {
 
     /** @hide */
     protected final SQLiteSession getSession() {
-        return mDatabase.getThreadSession();
-    }
-
-    /** @hide */
-    protected final int getConnectionFlags() {
-        return mDatabase.getThreadDefaultConnectionFlags(mReadOnly);
+        return mDatabase.mSession;
     }
 
     /** @hide */

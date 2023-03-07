@@ -177,15 +177,13 @@ public abstract class SQLiteOpenHelper {
             throw new IllegalStateException("getDatabase called recursively");
         }
 
-        SQLiteDatabase db = mDatabase;
+        close();
+
+        SQLiteDatabase db = null;
         try {
             mIsInitializing = true;
 
-            if (db != null) {
-                if (db.isReadOnly()) {
-                    db.reopenReadWrite();
-                }
-            } else if (mName == null) {
+            if (mName == null) {
                 db = SQLiteDatabase.create();
             } else {
                 try {
@@ -195,10 +193,8 @@ public abstract class SQLiteOpenHelper {
                             createConfiguration(path, SQLiteDatabase.OPEN_READONLY);
                         db = SQLiteDatabase.openDatabase(configuration, mErrorHandler);
                     } else {
-                        int flags = 0;
-                        flags |= SQLiteDatabase.CREATE_IF_NECESSARY;
                         SQLiteDatabaseConfiguration configuration =
-                            createConfiguration(path, flags);
+                            createConfiguration(path, SQLiteDatabase.CREATE_IF_NECESSARY);
                         db = SQLiteDatabase.openDatabase(configuration, mErrorHandler);
                     }
                 } catch (SQLiteException ex) {

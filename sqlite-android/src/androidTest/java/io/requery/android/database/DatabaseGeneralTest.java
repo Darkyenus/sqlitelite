@@ -555,7 +555,6 @@ public class DatabaseGeneralTest {
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
         checkNum(1);
-        Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
         // Test a rolled-back transaction.
         setNum(0);
@@ -563,7 +562,6 @@ public class DatabaseGeneralTest {
         setNum(1);
         mDatabase.endTransaction();
         checkNum(0);
-        Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
         // We should get an error if we end a non-existent transaction.
         assertThrowsIllegalState(() -> mDatabase.endTransaction());
@@ -578,7 +576,6 @@ public class DatabaseGeneralTest {
         // We should get an error if we begin a transaction after marking the parent as clean.
         assertThrowsIllegalState(() -> mDatabase.beginTransaction());
         mDatabase.endTransaction();
-        Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
         // Test a two-level transaction.
         setNum(0);
@@ -590,7 +587,6 @@ public class DatabaseGeneralTest {
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
         checkNum(1);
-        Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
         // Test rolling back an inner transaction.
         setNum(0);
@@ -601,7 +597,6 @@ public class DatabaseGeneralTest {
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
         checkNum(0);
-        Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
 
         // Test rolling back an outer transaction.
         setNum(0);
@@ -612,7 +607,6 @@ public class DatabaseGeneralTest {
         mDatabase.endTransaction();
         mDatabase.endTransaction();
         checkNum(0);
-        Assert.assertFalse(mDatabase.isDbLockedByCurrentThread());
     }
 
     private void setNum(int num) {
@@ -842,23 +836,6 @@ public class DatabaseGeneralTest {
         }
     }
 
-    @SmallTest
-    @Test
-    public void testSetMaxCacheSize() {
-        mDatabase.execSQL("CREATE TABLE test (i int, j int);");
-        mDatabase.execSQL("insert into test values(1,1);");
-        // set cache size
-        int N = SQLiteDatabase.MAX_SQL_CACHE_SIZE;
-        mDatabase.setMaxSqlCacheSize(N);
-
-        // try reduce cachesize
-        try {
-            mDatabase.setMaxSqlCacheSize(1);
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("cannot set cacheSize to a value less than"));
-        }
-    }
-
     @LargeTest
     @Test
     public void testDefaultDatabaseErrorHandler() {
@@ -885,7 +862,7 @@ public class DatabaseGeneralTest {
         try {
             errorHandler.onCorruption(memoryDb);
         } catch (Exception e) {
-            fail("unexpected");
+            throw new AssertionError("unexpected", e);
         }
 
         // create a database, keep it open, call corruption handler. database file should be deleted
@@ -897,58 +874,7 @@ public class DatabaseGeneralTest {
             errorHandler.onCorruption(dbObj);
             assertFalse(dbfile.exists());
         } catch (Exception e) {
-            fail("unexpected");
-        }
-
-        // create a database, attach 2 more databases to it
-        //    attached database # 1: ":memory:"
-        //    attached database # 2: mDatabase.getPath() + "1";
-        // call corruption handler. database files including the one for attached database # 2
-        // should be deleted
-        String attachedDb1File = mDatabase.getPath() + "1";
-        dbObj = SQLiteDatabase.openOrCreateDatabase(mDatabase.getPath(), null);
-        dbObj.execSQL("ATTACH DATABASE ':memory:' as memoryDb");
-        dbObj.execSQL("ATTACH DATABASE '" +  attachedDb1File + "' as attachedDb1");
-        assertTrue(dbfile.exists());
-        assertTrue(new File(attachedDb1File).exists());
-        assertNotNull(dbObj);
-        assertTrue(dbObj.isOpen());
-        List<Pair<String, String>> attachedDbs = dbObj.getAttachedDbs();
-        try {
-            errorHandler.onCorruption(dbObj);
-            assertFalse(dbfile.exists());
-            assertFalse(new File(attachedDb1File).exists());
-        } catch (Exception e) {
-            fail("unexpected");
-        }
-
-        // same as above, except this is a bit of stress testing. attach 5 database files
-        // and make sure they are all removed.
-        int N = 5;
-        ArrayList<String> attachedDbFiles = new ArrayList<String>(N);
-        for (int i = 0; i < N; i++) {
-            attachedDbFiles.add(mDatabase.getPath() + i);
-        }
-        dbObj = SQLiteDatabase.openOrCreateDatabase(mDatabase.getPath(), null);
-        dbObj.execSQL("ATTACH DATABASE ':memory:' as memoryDb");
-        for (int i = 0; i < N; i++) {
-            dbObj.execSQL("ATTACH DATABASE '" +  attachedDbFiles.get(i) + "' as attachedDb" + i);
-        }
-        assertTrue(dbfile.exists());
-        for (int i = 0; i < N; i++) {
-            assertTrue(new File(attachedDbFiles.get(i)).exists());
-        }
-        assertNotNull(dbObj);
-        assertTrue(dbObj.isOpen());
-        attachedDbs = dbObj.getAttachedDbs();
-        try {
-            errorHandler.onCorruption(dbObj);
-            assertFalse(dbfile.exists());
-            for (int i = 0; i < N; i++) {
-                assertFalse(new File(attachedDbFiles.get(i)).exists());
-            }
-        } catch (Exception e) {
-            fail("unexpected");
+            throw new AssertionError("unexpected", e);
         }
     }
 
