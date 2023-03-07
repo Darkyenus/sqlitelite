@@ -49,13 +49,6 @@ import static com.darkyen.sqlite.SQLiteNative.*;
  *
  * <h2>Ownership and concurrency guarantees</h2>
  * <p>
- * Connection objects are not thread-safe.  They are acquired as needed to
- * perform a database operation and are then returned to the pool.  At any
- * given time, a connection is either owned and used by a {@link SQLiteSession}
- * object or the {@link SQLiteConnectionPool}.  Those classes are
- * responsible for serializing operations to guard against concurrent
- * use of a connection.
- * </p><p>
  * The guarantee of having a single owner allows this class to be implemented
  * without locks and greatly simplifies resource management.
  * </p>
