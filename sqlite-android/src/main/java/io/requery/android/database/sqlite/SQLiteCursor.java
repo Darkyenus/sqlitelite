@@ -36,7 +36,7 @@ public class SQLiteCursor implements Closeable {
     static final int NO_COUNT = -1;
 
     /** The query object for the cursor */
-    private final SQLiteQuery mQuery;
+    private final SQLiteProgram mQuery;
 
     /** The compiled query this cursor came from */
     private final SQLiteCursorDriver mDriver;
@@ -59,10 +59,10 @@ public class SQLiteCursor implements Closeable {
      *
      * @param editTable not used, present only for compatibility with
      *                  {@link android.database.sqlite.SQLiteCursor}
-     * @param query     the {@link SQLiteQuery} object associated with this cursor object.
+     * @param query     the {@link SQLiteProgram} object associated with this cursor object.
      */
     @SuppressWarnings("unused")
-    public SQLiteCursor(SQLiteCursorDriver driver, String editTable, SQLiteQuery query) {
+    public SQLiteCursor(SQLiteCursorDriver driver, String editTable, SQLiteProgram query) {
         if (query == null) {
             throw new IllegalArgumentException("query object cannot be null");
         }

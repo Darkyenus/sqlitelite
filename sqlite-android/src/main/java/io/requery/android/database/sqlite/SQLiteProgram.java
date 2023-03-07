@@ -17,7 +17,14 @@
 
 package io.requery.android.database.sqlite;
 
+import android.database.SQLException;
+import android.database.sqlite.SQLiteDatabaseCorruptException;
+import android.database.sqlite.SQLiteDoneException;
+import android.database.sqlite.SQLiteException;
 import android.os.CancellationSignal;
+import android.os.OperationCanceledException;
+import android.util.Log;
+import io.requery.android.database.CursorWindow;
 
 import java.util.Arrays;
 
@@ -28,17 +35,21 @@ import java.util.Arrays;
  * </p>
  */
 @SuppressWarnings("unused")
-public abstract class SQLiteProgram extends SQLiteClosable {
+public final class SQLiteProgram extends SQLiteClosable {
+    private static final String TAG = "SQLiteProgram";
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
-    protected final SQLiteDatabase mDatabase;
+    private final SQLiteDatabase mDatabase;
     private final String mSql;
     private final int mNumParameters;
     private final Object[] mBindArgs;
 
-    SQLiteProgram(SQLiteDatabase db, String sql, Object[] bindArgs, CancellationSignal cancellationSignalForPrepare) {
+    private final CancellationSignal mCancellationSignal;
+
+    SQLiteProgram(SQLiteDatabase db, String sql, Object[] bindArgs, CancellationSignal cancellationSignal) {
         mDatabase = db;
         mSql = sql.trim();
+        mCancellationSignal = cancellationSignal;
 
         int n = SQLiteStatementType.getSqlStatementType(mSql);
         switch (n) {
@@ -52,7 +63,7 @@ public abstract class SQLiteProgram extends SQLiteClosable {
             default:
                 boolean assumeReadOnly = (n == SQLiteStatementType.STATEMENT_SELECT);
                 SQLiteStatementInfo info = new SQLiteStatementInfo();
-                db.mSession.prepare(mSql, cancellationSignalForPrepare, info);
+                db.mSession.prepare(mSql, cancellationSignal, info);
                 mNumParameters = info.numParameters;
                 break;
         }
@@ -209,4 +220,147 @@ public abstract class SQLiteProgram extends SQLiteClosable {
         }
         mBindArgs[index - 1] = value;
     }
+
+    //region SQLiteStatement
+    /**
+     * Execute this SQL statement, if it is not a SELECT / INSERT / DELETE / UPDATE, for example
+     * CREATE / DROP table, view, trigger, index etc.
+     *
+     * @throws SQLException If the SQL string is invalid for some reason
+     */
+    public void execute() {
+        acquireReference();
+        try {
+            mDatabase.mSession.execute(getSql(), getBindArgs(), null);
+        } catch (SQLiteDatabaseCorruptException ex) {
+            mDatabase.onCorruption();
+            throw ex;
+        } finally {
+            releaseReference();
+        }
+    }
+
+    /**
+     * Execute this SQL statement, if the the number of rows affected by execution of this SQL
+     * statement is of any importance to the caller - for example, UPDATE / DELETE SQL statements.
+     *
+     * @return the number of rows affected by this SQL statement execution.
+     * @throws SQLException If the SQL string is invalid for some reason
+     */
+    public int executeUpdateDelete() {
+        acquireReference();
+        try {
+            return mDatabase.mSession.executeForChangedRowCount(
+                    getSql(), getBindArgs(), null);
+        } catch (SQLiteDatabaseCorruptException ex) {
+            mDatabase.onCorruption();
+            throw ex;
+        } finally {
+            releaseReference();
+        }
+    }
+
+    /**
+     * Execute this SQL statement and return the ID of the row inserted due to this call.
+     * The SQL statement should be an INSERT for this to be a useful call.
+     *
+     * @return the row ID of the last row inserted, if this insert is successful. -1 otherwise.
+     *
+     * @throws SQLException If the SQL string is invalid for some reason
+     */
+    public long executeInsert() {
+        acquireReference();
+        try {
+            return mDatabase.mSession.executeForLastInsertedRowId(
+                    getSql(), getBindArgs(), null);
+        } catch (SQLiteDatabaseCorruptException ex) {
+            mDatabase.onCorruption();
+            throw ex;
+        } finally {
+            releaseReference();
+        }
+    }
+
+    /**
+     * Execute a statement that returns a 1 by 1 table with a numeric value.
+     * For example, SELECT COUNT(*) FROM table;
+     *
+     * @return The result of the query.
+     *
+     * @throws SQLiteDoneException if the query returns zero rows
+     */
+    public long simpleQueryForLong() {
+        acquireReference();
+        try {
+            return mDatabase.mSession.executeForLong(
+                    getSql(), getBindArgs(), null);
+        } catch (SQLiteDatabaseCorruptException ex) {
+            mDatabase.onCorruption();
+            throw ex;
+        } finally {
+            releaseReference();
+        }
+    }
+
+    /**
+     * Execute a statement that returns a 1 by 1 table with a text value.
+     * For example, SELECT COUNT(*) FROM table;
+     *
+     * @return The result of the query.
+     *
+     * @throws SQLiteDoneException if the query returns zero rows
+     */
+    public String simpleQueryForString() {
+        acquireReference();
+        try {
+            return mDatabase.mSession.executeForString(
+                    getSql(), getBindArgs(), null);
+        } catch (SQLiteDatabaseCorruptException ex) {
+            mDatabase.onCorruption();
+            throw ex;
+        } finally {
+            releaseReference();
+        }
+    }
+    //endregion
+
+    //region SQLiteQuery
+
+    /**
+     * Reads rows into a buffer.
+     *
+     * @param window The window to fill into
+     * @param startPos The start position for filling the window.
+     * @param requiredPos The position of a row that MUST be in the window.
+     * If it won't fit, then the query should discard part of what it filled.
+     * @param countAllRows True to count all rows that the query would
+     * return regardless of whether they fit in the window.
+     * @return Number of rows that were enumerated.  Might not be all rows
+     * unless countAllRows is true.
+     *
+     * @throws SQLiteException if an error occurs.
+     * @throws OperationCanceledException if the operation was canceled.
+     */
+    int fillWindow(CursorWindow window, int startPos, int requiredPos, boolean countAllRows) {
+        acquireReference();
+        try {
+            window.acquireReference();
+            try {
+                return mDatabase.mSession.executeForCursorWindow(getSql(), getBindArgs(),
+                        window, startPos, requiredPos, countAllRows,
+                        mCancellationSignal);
+            } catch (SQLiteDatabaseCorruptException ex) {
+                mDatabase.onCorruption();
+                throw ex;
+            } catch (SQLiteException ex) {
+                Log.e(TAG, "exception: " + ex.getMessage() + "; query: " + getSql());
+                throw ex;
+            } finally {
+                window.releaseReference();
+            }
+        } finally {
+            releaseReference();
+        }
+    }
+    //endregion
 }

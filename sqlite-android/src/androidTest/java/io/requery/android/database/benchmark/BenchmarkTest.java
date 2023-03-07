@@ -26,6 +26,7 @@ import android.util.Log;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import io.requery.android.database.sqlite.SQLiteCursor;
+import io.requery.android.database.sqlite.SQLiteProgram;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -129,7 +130,7 @@ public class BenchmarkTest {
     private void testRequerySQLiteWrite(Statistics statistics, int count) {
         Trace trace = new Trace("requery Write");
         io.requery.android.database.sqlite.SQLiteDatabase db = requerySQLite.getWritableDatabase();
-        io.requery.android.database.sqlite.SQLiteStatement statement = db.compileStatement(
+        SQLiteProgram statement = db.compileStatement(
             String.format("insert into %s (%s, %s) values (?,?)",
                 Record.TABLE_NAME,
                 Record.COLUMN_CONTENT,

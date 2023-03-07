@@ -37,7 +37,7 @@ public final class SQLiteDirectCursorDriver implements SQLiteCursorDriver {
     }
 
     public SQLiteCursor query(Object[] selectionArgs) {
-        SQLiteQuery query = new SQLiteQuery(mDatabase, mSql, selectionArgs, mCancellationSignal);
+        SQLiteProgram query = new SQLiteProgram(mDatabase, mSql, selectionArgs, mCancellationSignal);
         final SQLiteCursor cursor;
         try {
             cursor = new SQLiteCursor(this, mEditTable, query);
