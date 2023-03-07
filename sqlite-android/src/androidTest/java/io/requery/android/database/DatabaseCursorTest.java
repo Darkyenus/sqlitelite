@@ -20,30 +20,26 @@ package io.requery.android.database;
 import android.annotation.TargetApi;
 import android.content.ContentValues;
 import android.content.Context;
-import android.database.Cursor;
 import android.database.CursorIndexOutOfBoundsException;
 import android.os.Build;
 import android.util.Log;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 import io.requery.android.database.sqlite.SQLiteCursor;
-import io.requery.android.database.sqlite.SQLiteCursorDriver;
 import io.requery.android.database.sqlite.SQLiteDatabase;
-import io.requery.android.database.sqlite.SQLiteQuery;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -103,44 +99,32 @@ public class DatabaseCursorTest {
         // insert blob
         Object[] args = new Object[4];
         
-        byte[] blob = new byte[1000];
-        byte value = 99;
-        Arrays.fill(blob, value);        
-        args[3] = blob;
-        
         String s = "text";
         args[0] = s;
-        Double d = 99.9;
+        double d = 99.9;
         args[1] = d;
-        Long l = (long)1000;
+        long l = 1000L;
         args[2] = l;
+        byte[] b = new byte[1000];
+        byte value = 99;
+        Arrays.fill(b, value);
+        args[3] = b;
         
         String sql = "INSERT INTO test (s, d, l, b) VALUES (?,?,?,?)";
         mDatabase.execSQL(sql, args);
         // use cursor to access blob
-        SQLiteCursor c = mDatabase.query("SELECT * FROM test");
+        SQLiteCursor c = mDatabase.query("SELECT s, d, l, b FROM test");
         c.moveToNext();
-        ContentValues cv = new ContentValues();
-        //DatabaseUtils.cursorRowToContentValues(c, cv);
-        String[] columns = c.getColumnNames();
-        int length = columns.length;
-        for (int i = 0; i < length; i++) {
-            if (c.getType(i) == Cursor.FIELD_TYPE_BLOB) {
-                cv.put(columns[i], c.getBlob(i));
-            } else {
-                cv.put(columns[i], c.getString(i));
-            }
+        {
+            String cs = c.getString(0);
+            assertEquals(s, cs);
+            double cd = c.getDouble(1);
+            assertEquals(d, cd, 0.0);
+            long cl = c.getLong(2);
+            assertEquals(l, cl);
+            byte[] cb = c.getBlob(3);
+            assertArrayEquals(b, cb);
         }
-        
-        int bCol = c.getColumnIndexOrThrow("b");
-        int sCol = c.getColumnIndexOrThrow("s");
-        int dCol = c.getColumnIndexOrThrow("d");
-        int lCol = c.getColumnIndexOrThrow("l");
-        byte[] cBlob =  c.getBlob(bCol);
-        assertTrue(Arrays.equals(blob, cBlob));
-        assertEquals(s, c.getString(sCol));
-        assertEquals(d, new Double(c.getDouble(dCol)));
-        assertEquals((long)l, c.getLong(lCol));
         c.close();
     }
     
@@ -305,7 +289,7 @@ public class DatabaseCursorTest {
         assertEquals(count, i);
         assertEquals(count, c.getCount());
 
-        Log.d("testManyRows", "count " + Integer.toString(i));
+        Log.d("testManyRows", "count " + i);
         c.close();
     }
 

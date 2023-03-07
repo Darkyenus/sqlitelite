@@ -111,7 +111,6 @@ public class CursorWindow extends SQLiteClosable {
         }
     }
 
-    @SuppressWarnings("ThrowFromFinallyBlock")
     @Override
     protected void finalize() throws Throwable {
         try {
@@ -381,54 +380,6 @@ public class CursorWindow extends SQLiteClosable {
      */
     public double getDouble(int row, int column) {
         return nativeGetDouble(mWindowPtr, row - mStartPos, column);
-    }
-
-    /**
-     * Gets the value of the field at the specified row and column index as a
-     * <code>short</code>.
-     * <p>
-     * The result is determined by invoking {@link #getLong} and converting the
-     * result to <code>short</code>.
-     * </p>
-     *
-     * @param row The zero-based row index.
-     * @param column The zero-based column index.
-     * @return The value of the field as a <code>short</code>.
-     */
-    public short getShort(int row, int column) {
-        return (short) getLong(row, column);
-    }
-
-    /**
-     * Gets the value of the field at the specified row and column index as an
-     * <code>int</code>.
-     * <p>
-     * The result is determined by invoking {@link #getLong} and converting the
-     * result to <code>int</code>.
-     * </p>
-     *
-     * @param row The zero-based row index.
-     * @param column The zero-based column index.
-     * @return The value of the field as an <code>int</code>.
-     */
-    public int getInt(int row, int column) {
-        return (int) getLong(row, column);
-    }
-
-    /**
-     * Gets the value of the field at the specified row and column index as a
-     * <code>float</code>.
-     * <p>
-     * The result is determined by invoking {@link #getDouble} and converting the
-     * result to <code>float</code>.
-     * </p>
-     *
-     * @param row The zero-based row index.
-     * @param column The zero-based column index.
-     * @return The value of the field as an <code>float</code>.
-     */
-    public float getFloat(int row, int column) {
-        return (float) getDouble(row, column);
     }
 
     /**

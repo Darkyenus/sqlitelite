@@ -19,12 +19,13 @@ package io.requery.android.database.sqlite;
 
 import android.database.CharArrayBuffer;
 import android.database.Cursor;
+import android.database.CursorIndexOutOfBoundsException;
 import android.database.StaleDataException;
 import android.util.Log;
 import android.util.SparseIntArray;
-import io.requery.android.database.AbstractCursor;
 import io.requery.android.database.CursorWindow;
 
+import java.io.Closeable;
 import java.util.HashMap;
 
 /**
@@ -32,7 +33,7 @@ import java.util.HashMap;
  * SQLiteCursor is not internally synchronized so code using a SQLiteCursor from multiple
  * threads should perform its own synchronization when using the SQLiteCursor.
  */
-public class SQLiteCursor extends AbstractCursor {
+public class SQLiteCursor implements Closeable {
     static final String TAG = "SQLiteCursor";
     static final int NO_COUNT = -1;
 
@@ -88,8 +89,20 @@ public class SQLiteCursor extends AbstractCursor {
         return mQuery.getDatabase();
     }
 
-    @Override
-    public boolean onMove(int oldPosition, int newPosition) {
+    /**
+     * This function is called every time the cursor is successfully scrolled
+     * to a new position, giving the subclass a chance to update any state it
+     * may have.  If it returns false the move function will also do so and the
+     * cursor will scroll to the beforeFirst position.
+     * <p>
+     * This function should be called by methods such as {@link #moveToPosition(int)},
+     * so it will typically not be called from outside of the cursor class itself.
+     * </p>
+     *
+     * @param newPosition The position that we're moving to.
+     * @return True if the move is successful, false otherwise.
+     */
+    public boolean onMove(int newPosition) {
         // Make sure the row at newPosition is present in the window
         if (mWindow == null || newPosition < mWindow.getStartPosition() ||
                 newPosition >= (mWindow.getStartPosition() + mWindow.getNumRows())) {
@@ -99,7 +112,6 @@ public class SQLiteCursor extends AbstractCursor {
         return true;
     }
 
-    @Override
     public int getCount() {
         if (mCount == NO_COUNT) {
             fillWindow(0);
@@ -138,7 +150,6 @@ public class SQLiteCursor extends AbstractCursor {
         }
     }
 
-    @Override
     public int getColumnIndex(String columnName) {
         // Create mColumnNameMap on demand
         if (mColumnNameArray == null && mColumnNameMap == null) {
@@ -182,27 +193,21 @@ public class SQLiteCursor extends AbstractCursor {
         }
     }
 
-    @Override
-    public String[] getColumnNames() {
-        return mColumns;
-    }
-
-    @Override
     public void deactivate() {
-        super.deactivate();
+        onDeactivateOrClose();
         mDriver.cursorDeactivated();
     }
 
     @Override
     public void close() {
-        super.close();
+        mClosed = true;
+        onDeactivateOrClose();
         synchronized (this) {
             mQuery.close();
             mDriver.cursorClosed();
         }
     }
 
-    @Override
     public boolean requery() {
         if (isClosed()) {
             return false;
@@ -223,7 +228,7 @@ public class SQLiteCursor extends AbstractCursor {
         }
 
         try {
-            return super.requery();
+            return true;
         } catch (IllegalStateException e) {
             // for backwards compatibility, just return false
             Log.w(TAG, "requery() failed " + e.getMessage(), e);
@@ -243,7 +248,9 @@ public class SQLiteCursor extends AbstractCursor {
                 close();
             }
         } finally {
-            super.finalize();
+            try {
+                if (!mClosed) close();
+            } catch(Exception ignored) { }
         }
     }
 
@@ -255,66 +262,49 @@ public class SQLiteCursor extends AbstractCursor {
      */
     protected CursorWindow mWindow;
 
-    @Override
     public byte[] getBlob(int columnIndex) {
         checkPosition();
         return mWindow.getBlob(mPos, columnIndex);
     }
 
-    @Override
     public String getString(int columnIndex) {
         checkPosition();
         return mWindow.getString(mPos, columnIndex);
     }
 
-    @Override
     public void copyStringToBuffer(int columnIndex, CharArrayBuffer buffer) {
         mWindow.copyStringToBuffer(mPos, columnIndex, buffer);
     }
 
-    @Override
-    public short getShort(int columnIndex) {
-        checkPosition();
-        return mWindow.getShort(mPos, columnIndex);
-    }
-
-    @Override
     public int getInt(int columnIndex) {
-        checkPosition();
-        return mWindow.getInt(mPos, columnIndex);
+        return (int) getLong(columnIndex);
     }
 
-    @Override
     public long getLong(int columnIndex) {
         checkPosition();
         return mWindow.getLong(mPos, columnIndex);
     }
 
-    @Override
-    public float getFloat(int columnIndex) {
-        checkPosition();
-        return mWindow.getFloat(mPos, columnIndex);
-    }
-
-    @Override
     public double getDouble(int columnIndex) {
         checkPosition();
         return mWindow.getDouble(mPos, columnIndex);
     }
 
-    @Override
     public boolean isNull(int columnIndex) {
         return mWindow.getType(mPos, columnIndex) == Cursor.FIELD_TYPE_NULL;
     }
 
-    @Override
-    public int getType(int columnIndex) {
-        return mWindow.getType(mPos, columnIndex);
-    }
-
-    @Override
+    /**
+     * This function throws CursorIndexOutOfBoundsException if the cursor position is out of bounds.
+     * Subclass implementations of the get functions should call this before attempting to
+     * retrieve data.
+     *
+     * @throws CursorIndexOutOfBoundsException hah
+     */
     protected void checkPosition() {
-        super.checkPosition();
+        if (-1 == mPos || getCount() == mPos) {
+            throw new CursorIndexOutOfBoundsException(mPos, getCount());
+        }
         if (mWindow == null) {
             throw new StaleDataException("Attempting to access a closed CursorWindow." +
                     "Most probable cause: cursor is deactivated prior to calling this method.");
@@ -369,9 +359,87 @@ public class SQLiteCursor extends AbstractCursor {
         }
     }
 
-    @Override
     protected void onDeactivateOrClose() {
-        super.onDeactivateOrClose();
         closeWindow();
+    }
+
+    protected int mPos = -1;
+
+    protected boolean mClosed;
+
+
+    public boolean isClosed() {
+        return mClosed;
+    }
+
+
+    public final int getPosition() {
+        return mPos;
+    }
+
+    public final boolean moveToPosition(int position) {
+        // Make sure position isn't past the end of the cursor
+        final int count = getCount();
+        if (position >= count) {
+            mPos = count;
+            return false;
+        }
+
+        // Make sure position isn't before the beginning of the cursor
+        if (position < 0) {
+            mPos = -1;
+            return false;
+        }
+
+        // Check for no-op moves, and skip the rest of the work for them
+        if (position == mPos) {
+            return true;
+        }
+
+        boolean result = onMove(position);
+        if (!result) {
+            mPos = -1;
+        } else {
+            mPos = position;
+        }
+
+        return result;
+    }
+
+    public final boolean move(int offset) {
+        return moveToPosition(mPos + offset);
+    }
+
+    public final boolean moveToFirst() {
+        return moveToPosition(0);
+    }
+
+    public final boolean moveToNext() {
+        return moveToPosition(mPos + 1);
+    }
+
+    public final boolean isFirst() {
+        return mPos == 0 && getCount() != 0;
+    }
+
+    public final boolean isLast() {
+        int cnt = getCount();
+        return mPos == (cnt - 1) && cnt != 0;
+    }
+
+    public final boolean isBeforeFirst() {
+        return getCount() == 0 || mPos == -1;
+    }
+
+    public final boolean isAfterLast() {
+        return getCount() == 0 || mPos == getCount();
+    }
+
+    public int getColumnIndexOrThrow(String columnName) {
+        final int index = getColumnIndex(columnName);
+        if (index < 0) {
+            throw new IllegalArgumentException("column '" + columnName + "' does not exist");
+        }
+        return index;
     }
 }
