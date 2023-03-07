@@ -29,11 +29,6 @@ package io.requery.android.database.sqlite;
  * using sqlite3_config() then calls sqlite3_initialize() to ensure that the SQLite
  * library is properly initialized exactly once before any other framework or application
  * code has a chance to run.
- *
- * Verbose SQLite logging is enabled if the "log.tag.SQLiteLog" property is set to "V".
- * (per {@link SQLiteDebug#DEBUG_SQL_LOG}).
- *
- * @hide
  */
 public final class SQLiteGlobal {
 

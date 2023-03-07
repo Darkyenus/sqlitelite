@@ -68,8 +68,6 @@ import java.util.concurrent.locks.LockSupport;
  * handling out of memory because it is hard to do anything at all sensible then
  * and most likely the VM is about to crash.
  * </p>
- *
- * @hide
  */
 public final class SQLiteConnectionPool implements Closeable {
     private static final String TAG = "SQLiteConnectionPool";
@@ -639,7 +637,6 @@ public final class SQLiteConnectionPool implements Closeable {
                     if (now < nextBusyTimeoutTime) {
                         busyTimeoutMillis = now - nextBusyTimeoutTime;
                     } else {
-                        logConnectionPoolBusyLocked(now - waiter.mStartTime, connectionFlags);
                         busyTimeoutMillis = CONNECTION_POOL_BUSY_MILLIS;
                         nextBusyTimeoutTime = now + busyTimeoutMillis;
                     }
@@ -680,49 +677,6 @@ public final class SQLiteConnectionPool implements Closeable {
 
         // Check whether removing this waiter will enable other waiters to make progress.
         wakeConnectionWaitersLocked();
-    }
-
-    // Can't throw.
-    private void logConnectionPoolBusyLocked(long waitMillis, int connectionFlags) {
-        final Thread thread = Thread.currentThread();
-        StringBuilder msg = new StringBuilder();
-        msg.append("The connection pool for database '").append(mConfiguration.label);
-        msg.append("' has been unable to grant a connection to thread ");
-        msg.append(thread.getId()).append(" (").append(thread.getName()).append(") ");
-        msg.append("with flags 0x").append(Integer.toHexString(connectionFlags));
-        msg.append(" for ").append(waitMillis * 0.001f).append(" seconds.\n");
-
-        ArrayList<String> requests = new ArrayList<>();
-        int activeConnections = 0;
-        int idleConnections = 0;
-        if (!mAcquiredConnections.isEmpty()) {
-            for (SQLiteConnection connection : mAcquiredConnections.keySet()) {
-                String description = connection.describeCurrentOperationUnsafe();
-                if (description != null) {
-                    requests.add(description);
-                    activeConnections += 1;
-                } else {
-                    idleConnections += 1;
-                }
-            }
-        }
-        int availableConnections = mAvailableNonPrimaryConnections.size();
-        if (mAvailablePrimaryConnection != null) {
-            availableConnections += 1;
-        }
-
-        msg.append("Connections: ").append(activeConnections).append(" active, ");
-        msg.append(idleConnections).append(" idle, ");
-        msg.append(availableConnections).append(" available.\n");
-
-        if (!requests.isEmpty()) {
-            msg.append("\nRequests in progress:\n");
-            for (String request : requests) {
-                msg.append("  ").append(request).append("\n");
-            }
-        }
-
-        Log.w(TAG, msg.toString());
     }
 
     // Can't throw.

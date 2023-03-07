@@ -17,20 +17,16 @@
 
 package io.requery.android.database.sqlite;
 
-import android.database.Cursor;
 import android.os.CancellationSignal;
 
 /**
  * A cursor driver that uses the given query directly.
- * 
- * @hide
  */
 public final class SQLiteDirectCursorDriver implements SQLiteCursorDriver {
     private final SQLiteDatabase mDatabase;
     private final String mEditTable; 
     private final String mSql;
     private final CancellationSignal mCancellationSignal;
-    private SQLiteQuery mQuery;
 
     public SQLiteDirectCursorDriver(SQLiteDatabase db, String sql, String editTable,
             CancellationSignal cancellationSignal) {
@@ -50,17 +46,12 @@ public final class SQLiteDirectCursorDriver implements SQLiteCursorDriver {
             throw ex;
         }
 
-        mQuery = query;
         return cursor;
     }
 
     @Override
     public void cursorClosed() {
         // Do nothing
-    }
-
-    public void setBindArguments(String[] bindArgs) {
-        mQuery.bindAllArgsAsStrings(bindArgs);
     }
 
     @Override

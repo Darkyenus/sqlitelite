@@ -26,20 +26,12 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteBindOrColumnIndexOutOfRangeException;
 import android.database.sqlite.SQLiteDatabaseLockedException;
 import android.database.sqlite.SQLiteException;
-import android.os.Build;
 import android.os.CancellationSignal;
-import android.os.Looper;
 import android.os.OperationCanceledException;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.util.LruCache;
-import android.util.Printer;
 import io.requery.android.database.CursorWindow;
-
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.regex.Pattern;
 
 /**
  * Represents a SQLite database connection.
@@ -86,17 +78,12 @@ import java.util.regex.Pattern;
  * This class must tolerate reentrant execution of SQLite operations because
  * triggers may call custom SQLite functions that perform additional queries.
  * </p>
- *
- * @hide
  */
 public final class SQLiteConnection implements CancellationSignal.OnCancelListener {
     private static final String TAG = "SQLiteConnection";
     private static final boolean DEBUG = false;
 
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
-    private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
-
-    private static final Pattern TRIM_SQL_PATTERN = Pattern.compile("[\\s]*\\n+[\\s]*");
 
     private final CloseGuard mCloseGuard = CloseGuard.get();
 
@@ -108,8 +95,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     private final PreparedStatementCache mPreparedStatementCache;
     private PreparedStatement mPreparedStatementPool;
 
-    // The recent operations log.
-    private final OperationLog mRecentOperations = new OperationLog();
 
     // The native SQLiteConnection pointer.  (FOR INTERNAL USE ONLY)
     private long mConnectionPtr;
@@ -147,8 +132,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
     private static native void nativeExecute(long connectionPtr, long statementPtr);
     private static native long nativeExecuteForLong(long connectionPtr, long statementPtr);
     private static native String nativeExecuteForString(long connectionPtr, long statementPtr);
-    private static native int nativeExecuteForBlobFileDescriptor(
-            long connectionPtr, long statementPtr);
     private static native int nativeExecuteForChangedRowCount(long connectionPtr, long statementPtr);
     private static native long nativeExecuteForLastInsertedRowId(
             long connectionPtr, long statementPtr);
@@ -171,7 +154,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         mCloseGuard.open("close");
     }
 
-    @SuppressWarnings("ThrowFromFinallyBlock")
     @Override
     protected void finalize() throws Throwable {
         try {
@@ -262,14 +244,9 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         }
 
         if (mConnectionPtr != 0) {
-            final int cookie = mRecentOperations.beginOperation("close", null, null);
-            try {
-                mPreparedStatementCache.evictAll();
-                nativeClose(mConnectionPtr);
-                mConnectionPtr = 0;
-            } finally {
-                mRecentOperations.endOperation(cookie);
-            }
+            mPreparedStatementCache.evictAll();
+            nativeClose(mConnectionPtr);
+            mConnectionPtr = 0;
         }
     }
 
@@ -353,34 +330,26 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             throw new IllegalArgumentException("sql must not be null.");
         }
 
-        final int cookie = mRecentOperations.beginOperation("prepare", sql, null);
+        final PreparedStatement statement = acquirePreparedStatement(sql);
         try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
-            try {
-                if (outStatementInfo != null) {
-                    outStatementInfo.numParameters = statement.mNumParameters;
-                    outStatementInfo.readOnly = statement.mReadOnly;
+            if (outStatementInfo != null) {
+                outStatementInfo.numParameters = statement.mNumParameters;
+                outStatementInfo.readOnly = statement.mReadOnly;
 
-                    final int columnCount = nativeGetColumnCount(
-                            mConnectionPtr, statement.mStatementPtr);
-                    if (columnCount == 0) {
-                        outStatementInfo.columnNames = EMPTY_STRING_ARRAY;
-                    } else {
-                        outStatementInfo.columnNames = new String[columnCount];
-                        for (int i = 0; i < columnCount; i++) {
-                            outStatementInfo.columnNames[i] = nativeGetColumnName(
-                                    mConnectionPtr, statement.mStatementPtr, i);
-                        }
+                final int columnCount = nativeGetColumnCount(
+                        mConnectionPtr, statement.mStatementPtr);
+                if (columnCount == 0) {
+                    outStatementInfo.columnNames = EMPTY_STRING_ARRAY;
+                } else {
+                    outStatementInfo.columnNames = new String[columnCount];
+                    for (int i = 0; i < columnCount; i++) {
+                        outStatementInfo.columnNames[i] = nativeGetColumnName(
+                                mConnectionPtr, statement.mStatementPtr, i);
                     }
                 }
-            } finally {
-                releasePreparedStatement(statement);
             }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
         } finally {
-            mRecentOperations.endOperation(cookie);
+            releasePreparedStatement(statement);
         }
     }
 
@@ -401,27 +370,18 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             throw new IllegalArgumentException("sql must not be null.");
         }
 
-        final int cookie = mRecentOperations.beginOperation("execute", sql, bindArgs);
+        final PreparedStatement statement = acquirePreparedStatement(sql);
         try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
+            throwIfStatementForbidden(statement);
+            bindArguments(statement, bindArgs);
+            attachCancellationSignal(cancellationSignal);
             try {
-                throwIfStatementForbidden(statement);
-                bindArguments(statement, bindArgs);
-                applyBlockGuardPolicy(statement);
-                attachCancellationSignal(cancellationSignal);
-                try {
-                    nativeExecute(mConnectionPtr, statement.mStatementPtr);
-                } finally {
-                    detachCancellationSignal(cancellationSignal);
-                }
+                nativeExecute(mConnectionPtr, statement.mStatementPtr);
             } finally {
-                releasePreparedStatement(statement);
+                detachCancellationSignal(cancellationSignal);
             }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
         } finally {
-            mRecentOperations.endOperation(cookie);
+            releasePreparedStatement(statement);
         }
     }
 
@@ -444,27 +404,18 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             throw new IllegalArgumentException("sql must not be null.");
         }
 
-        final int cookie = mRecentOperations.beginOperation("executeForLong", sql, bindArgs);
+        final PreparedStatement statement = acquirePreparedStatement(sql);
         try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
+            throwIfStatementForbidden(statement);
+            bindArguments(statement, bindArgs);
+            attachCancellationSignal(cancellationSignal);
             try {
-                throwIfStatementForbidden(statement);
-                bindArguments(statement, bindArgs);
-                applyBlockGuardPolicy(statement);
-                attachCancellationSignal(cancellationSignal);
-                try {
-                    return nativeExecuteForLong(mConnectionPtr, statement.mStatementPtr);
-                } finally {
-                    detachCancellationSignal(cancellationSignal);
-                }
+                return nativeExecuteForLong(mConnectionPtr, statement.mStatementPtr);
             } finally {
-                releasePreparedStatement(statement);
+                detachCancellationSignal(cancellationSignal);
             }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
         } finally {
-            mRecentOperations.endOperation(cookie);
+            releasePreparedStatement(statement);
         }
     }
 
@@ -487,75 +438,18 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             throw new IllegalArgumentException("sql must not be null.");
         }
 
-        final int cookie = mRecentOperations.beginOperation("executeForString", sql, bindArgs);
+        final PreparedStatement statement = acquirePreparedStatement(sql);
         try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
+            throwIfStatementForbidden(statement);
+            bindArguments(statement, bindArgs);
+            attachCancellationSignal(cancellationSignal);
             try {
-                throwIfStatementForbidden(statement);
-                bindArguments(statement, bindArgs);
-                applyBlockGuardPolicy(statement);
-                attachCancellationSignal(cancellationSignal);
-                try {
-                    return nativeExecuteForString(mConnectionPtr, statement.mStatementPtr);
-                } finally {
-                    detachCancellationSignal(cancellationSignal);
-                }
+                return nativeExecuteForString(mConnectionPtr, statement.mStatementPtr);
             } finally {
-                releasePreparedStatement(statement);
+                detachCancellationSignal(cancellationSignal);
             }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
         } finally {
-            mRecentOperations.endOperation(cookie);
-        }
-    }
-
-    /**
-     * Executes a statement that returns a single BLOB result as a
-     * file descriptor to a shared memory region.
-     *
-     * @param sql The SQL statement to execute.
-     * @param bindArgs The arguments to bind, or null if none.
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     * @return The file descriptor for a shared memory region that contains
-     * the value of the first column in the first row of the result set as a BLOB,
-     * or null if none.
-     *
-     * @throws SQLiteException if an error occurs, such as a syntax error
-     * or invalid number of bind arguments.
-     * @throws OperationCanceledException if the operation was canceled.
-     */
-    public ParcelFileDescriptor executeForBlobFileDescriptor(String sql, Object[] bindArgs,
-            CancellationSignal cancellationSignal) {
-        if (sql == null) {
-            throw new IllegalArgumentException("sql must not be null.");
-        }
-
-        final int cookie = mRecentOperations.beginOperation("executeForBlobFileDescriptor",
-                sql, bindArgs);
-        try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
-            try {
-                throwIfStatementForbidden(statement);
-                bindArguments(statement, bindArgs);
-                applyBlockGuardPolicy(statement);
-                attachCancellationSignal(cancellationSignal);
-                try {
-                    int fd = nativeExecuteForBlobFileDescriptor(
-                            mConnectionPtr, statement.mStatementPtr);
-                    return fd >= 0 ? ParcelFileDescriptor.adoptFd(fd) : null;
-                } finally {
-                    detachCancellationSignal(cancellationSignal);
-                }
-            } finally {
-                releasePreparedStatement(statement);
-            }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
-        } finally {
-            mRecentOperations.endOperation(cookie);
+            releasePreparedStatement(statement);
         }
     }
 
@@ -578,33 +472,21 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             throw new IllegalArgumentException("sql must not be null.");
         }
 
-        int changedRows = 0;
-        final int cookie = mRecentOperations.beginOperation("executeForChangedRowCount",
-                sql, bindArgs);
+        int changedRows;
+        final PreparedStatement statement = acquirePreparedStatement(sql);
         try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
+            throwIfStatementForbidden(statement);
+            bindArguments(statement, bindArgs);
+            attachCancellationSignal(cancellationSignal);
             try {
-                throwIfStatementForbidden(statement);
-                bindArguments(statement, bindArgs);
-                applyBlockGuardPolicy(statement);
-                attachCancellationSignal(cancellationSignal);
-                try {
-                    changedRows = nativeExecuteForChangedRowCount(
-                            mConnectionPtr, statement.mStatementPtr);
-                    return changedRows;
-                } finally {
-                    detachCancellationSignal(cancellationSignal);
-                }
+                changedRows = nativeExecuteForChangedRowCount(
+                        mConnectionPtr, statement.mStatementPtr);
+                return changedRows;
             } finally {
-                releasePreparedStatement(statement);
+                detachCancellationSignal(cancellationSignal);
             }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
         } finally {
-            if (mRecentOperations.endOperationDeferLog(cookie)) {
-                mRecentOperations.logOperation(cookie, "changedRows=" + changedRows);
-            }
+            releasePreparedStatement(statement);
         }
     }
 
@@ -627,29 +509,19 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             throw new IllegalArgumentException("sql must not be null.");
         }
 
-        final int cookie = mRecentOperations.beginOperation("executeForLastInsertedRowId",
-                sql, bindArgs);
+        final PreparedStatement statement = acquirePreparedStatement(sql);
         try {
-            final PreparedStatement statement = acquirePreparedStatement(sql);
+            throwIfStatementForbidden(statement);
+            bindArguments(statement, bindArgs);
+            attachCancellationSignal(cancellationSignal);
             try {
-                throwIfStatementForbidden(statement);
-                bindArguments(statement, bindArgs);
-                applyBlockGuardPolicy(statement);
-                attachCancellationSignal(cancellationSignal);
-                try {
-                    return nativeExecuteForLastInsertedRowId(
-                            mConnectionPtr, statement.mStatementPtr);
-                } finally {
-                    detachCancellationSignal(cancellationSignal);
-                }
+                return nativeExecuteForLastInsertedRowId(
+                        mConnectionPtr, statement.mStatementPtr);
             } finally {
-                releasePreparedStatement(statement);
+                detachCancellationSignal(cancellationSignal);
             }
-        } catch (RuntimeException ex) {
-            mRecentOperations.failOperation(cookie, ex);
-            throw ex;
         } finally {
-            mRecentOperations.endOperation(cookie);
+            releasePreparedStatement(statement);
         }
     }
 
@@ -691,44 +563,26 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
 
         window.acquireReference();
         try {
-            int actualPos = -1;
-            int countedRows = -1;
-            int filledRows = -1;
-            final int cookie = mRecentOperations.beginOperation("executeForCursorWindow",
-                    sql, bindArgs);
+            int actualPos;
+            int countedRows;
+            final PreparedStatement statement = acquirePreparedStatement(sql);
             try {
-                final PreparedStatement statement = acquirePreparedStatement(sql);
+                throwIfStatementForbidden(statement);
+                bindArguments(statement, bindArgs);
+                attachCancellationSignal(cancellationSignal);
                 try {
-                    throwIfStatementForbidden(statement);
-                    bindArguments(statement, bindArgs);
-                    applyBlockGuardPolicy(statement);
-                    attachCancellationSignal(cancellationSignal);
-                    try {
-                        final long result = nativeExecuteForCursorWindow(
-                                mConnectionPtr, statement.mStatementPtr, window.mWindowPtr,
-                                startPos, requiredPos, countAllRows);
-                        actualPos = (int)(result >> 32);
-                        countedRows = (int)result;
-                        filledRows = window.getNumRows();
-                        window.setStartPosition(actualPos);
-                        return countedRows;
-                    } finally {
-                        detachCancellationSignal(cancellationSignal);
-                    }
+                    final long result = nativeExecuteForCursorWindow(
+                            mConnectionPtr, statement.mStatementPtr, window.mWindowPtr,
+                            startPos, requiredPos, countAllRows);
+                    actualPos = (int)(result >> 32);
+                    countedRows = (int)result;
+                    window.setStartPosition(actualPos);
+                    return countedRows;
                 } finally {
-                    releasePreparedStatement(statement);
+                    detachCancellationSignal(cancellationSignal);
                 }
-            } catch (RuntimeException ex) {
-                mRecentOperations.failOperation(cookie, ex);
-                throw ex;
             } finally {
-                if (mRecentOperations.endOperationDeferLog(cookie)) {
-                    mRecentOperations.logOperation(cookie, "window='" + window
-                            + "', startPos=" + startPos
-                            + ", actualPos=" + actualPos
-                            + ", filledRows=" + filledRows
-                            + ", countedRows=" + countedRows);
-                }
+                releasePreparedStatement(statement);
             }
         } finally {
             window.releaseReference();
@@ -783,7 +637,7 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
                 if (DEBUG) {
                     Log.d(TAG, "Could not reset prepared statement due to an exception.  "
                             + "Removing it from the cache.  SQL: "
-                            + trimSqlForDisplay(statement.mSql), ex);
+                            + statement.mSql, ex);
                 }
 
                 mPreparedStatementCache.remove(statement.mSql);
@@ -837,11 +691,7 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         if (count != statement.mNumParameters) {
             String message = "Expected " + statement.mNumParameters + " bind arguments but "
                 + count + " were provided.";
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                throw new SQLiteBindOrColumnIndexOutOfRangeException(message);
-            } else {
-                throw new SQLiteException(message);
-            }
+            throw new SQLiteBindOrColumnIndexOutOfRangeException(message);
         }
         if (count == 0) {
             return;
@@ -922,37 +772,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             || statementType == SQLiteStatementType.STATEMENT_SELECT;
     }
 
-    private void applyBlockGuardPolicy(PreparedStatement statement) {
-        if (!mConfiguration.isInMemoryDb() && SQLiteDebug.DEBUG_SQL_LOG) {
-            // don't have access to the policy, so just log
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                if (statement.mReadOnly) {
-                    Log.w(TAG, "Reading from disk on main thread");
-                } else {
-                    Log.w(TAG, "Writing to disk on main thread");
-                }
-            }
-        }
-    }
-
-    /**
-     * Describes the currently executing operation, in the case where the
-     * caller might not actually own the connection.
-     *
-     * This function is written so that it may be called by a thread that does not
-     * own the connection.  We need to be very careful because the connection state is
-     * not synchronized.
-     *
-     * At worst, the method may return stale or slightly wrong data, however
-     * it should not crash.  This is ok as it is only used for diagnostic purposes.
-     *
-     * @return A description of the current operation including how long it has been running,
-     * or null if none.
-     */
-    String describeCurrentOperationUnsafe() {
-        return mRecentOperations.describeCurrentOperation();
-    }
-
 
     @Override
     public String toString() {
@@ -981,10 +800,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
         statement.mSql = null;
         statement.mPoolNext = mPreparedStatementPool;
         mPreparedStatementPool = statement;
-    }
-
-    private static String trimSqlForDisplay(String sql) {
-        return TRIM_SQL_PATTERN.matcher(sql).replaceAll(" ");
     }
 
     /**
@@ -1039,222 +854,6 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
             if (!oldValue.mInUse) {
                 finalizePreparedStatement(oldValue);
             }
-        }
-    }
-
-    private static final class OperationLog {
-        private static final int MAX_RECENT_OPERATIONS = 20;
-        private static final int COOKIE_GENERATION_SHIFT = 8;
-        private static final int COOKIE_INDEX_MASK = 0xff;
-
-        private final Operation[] mOperations = new Operation[MAX_RECENT_OPERATIONS];
-        private int mIndex;
-        private int mGeneration;
-
-        public int beginOperation(String kind, String sql, Object[] bindArgs) {
-            synchronized (mOperations) {
-                final int index = (mIndex + 1) % MAX_RECENT_OPERATIONS;
-                Operation operation = mOperations[index];
-                if (operation == null) {
-                    operation = new Operation();
-                    mOperations[index] = operation;
-                } else {
-                    operation.mFinished = false;
-                    operation.mException = null;
-                    if (operation.mBindArgs != null) {
-                        operation.mBindArgs.clear();
-                    }
-                }
-                operation.mStartTime = System.currentTimeMillis();
-                operation.mKind = kind;
-                operation.mSql = sql;
-                if (bindArgs != null) {
-                    if (operation.mBindArgs == null) {
-                        operation.mBindArgs = new ArrayList<>();
-                    } else {
-                        operation.mBindArgs.clear();
-                    }
-                    for (final Object arg : bindArgs) {
-                        if (arg instanceof byte[]) {
-                            // Don't hold onto the real byte array longer than necessary.
-                            operation.mBindArgs.add(EMPTY_BYTE_ARRAY);
-                        } else {
-                            operation.mBindArgs.add(arg);
-                        }
-                    }
-                }
-                operation.mCookie = newOperationCookieLocked(index);
-                mIndex = index;
-                return operation.mCookie;
-            }
-        }
-
-        public void failOperation(int cookie, Exception ex) {
-            synchronized (mOperations) {
-                final Operation operation = getOperationLocked(cookie);
-                if (operation != null) {
-                    operation.mException = ex;
-                }
-            }
-        }
-
-        public void endOperation(int cookie) {
-            synchronized (mOperations) {
-                if (endOperationDeferLogLocked(cookie)) {
-                    logOperationLocked(cookie, null);
-                }
-            }
-        }
-
-        public boolean endOperationDeferLog(int cookie) {
-            synchronized (mOperations) {
-                return endOperationDeferLogLocked(cookie);
-            }
-        }
-
-        public void logOperation(int cookie, String detail) {
-            synchronized (mOperations) {
-                logOperationLocked(cookie, detail);
-            }
-        }
-
-        private boolean endOperationDeferLogLocked(int cookie) {
-            final Operation operation = getOperationLocked(cookie);
-            if (operation != null) {
-                operation.mEndTime = System.currentTimeMillis();
-                operation.mFinished = true;
-                return SQLiteDebug.DEBUG_LOG_SLOW_QUERIES && SQLiteDebug.shouldLogSlowQuery(
-                                operation.mEndTime - operation.mStartTime);
-            }
-            return false;
-        }
-
-        private void logOperationLocked(int cookie, String detail) {
-            final Operation operation = getOperationLocked(cookie);
-            if (operation == null) {
-                return;
-            }
-            StringBuilder msg = new StringBuilder();
-            operation.describe(msg, false);
-            if (detail != null) {
-                msg.append(", ").append(detail);
-            }
-            Log.d(TAG, msg.toString());
-        }
-
-        private int newOperationCookieLocked(int index) {
-            final int generation = mGeneration++;
-            return generation << COOKIE_GENERATION_SHIFT | index;
-        }
-
-        private Operation getOperationLocked(int cookie) {
-            final int index = cookie & COOKIE_INDEX_MASK;
-            final Operation operation = mOperations[index];
-            return operation.mCookie == cookie ? operation : null;
-        }
-
-        public String describeCurrentOperation() {
-            synchronized (mOperations) {
-                final Operation operation = mOperations[mIndex];
-                if (operation != null && !operation.mFinished) {
-                    StringBuilder msg = new StringBuilder();
-                    operation.describe(msg, false);
-                    return msg.toString();
-                }
-                return null;
-            }
-        }
-
-        public void dump(Printer printer, boolean verbose) {
-            synchronized (mOperations) {
-                printer.println("  Most recently executed operations:");
-                int index = mIndex;
-                Operation operation = mOperations[index];
-                if (operation != null) {
-                    int n = 0;
-                    do {
-                        StringBuilder msg = new StringBuilder();
-                        msg.append("    ").append(n).append(": [");
-                        msg.append(operation.getFormattedStartTime());
-                        msg.append("] ");
-                        operation.describe(msg, verbose);
-                        printer.println(msg.toString());
-
-                        if (index > 0) {
-                            index -= 1;
-                        } else {
-                            index = MAX_RECENT_OPERATIONS - 1;
-                        }
-                        n += 1;
-                        operation = mOperations[index];
-                    } while (operation != null && n < MAX_RECENT_OPERATIONS);
-                } else {
-                    printer.println("    <none>");
-                }
-            }
-        }
-    }
-
-    private static final class Operation {
-        @SuppressLint("SimpleDateFormat")
-        private static final SimpleDateFormat sDateFormat =
-                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-
-        public long mStartTime;
-        public long mEndTime;
-        public String mKind;
-        public String mSql;
-        public ArrayList<Object> mBindArgs;
-        public boolean mFinished;
-        public Exception mException;
-        public int mCookie;
-
-        public void describe(StringBuilder msg, boolean verbose) {
-            msg.append(mKind);
-            if (mFinished) {
-                msg.append(" took ").append(mEndTime - mStartTime).append("ms");
-            } else {
-                msg.append(" started ").append(System.currentTimeMillis() - mStartTime)
-                        .append("ms ago");
-            }
-            msg.append(" - ").append(getStatus());
-            if (mSql != null) {
-                msg.append(", sql=\"").append(trimSqlForDisplay(mSql)).append("\"");
-            }
-            if (verbose && mBindArgs != null && mBindArgs.size() != 0) {
-                msg.append(", bindArgs=[");
-                final int count = mBindArgs.size();
-                for (int i = 0; i < count; i++) {
-                    final Object arg = mBindArgs.get(i);
-                    if (i != 0) {
-                        msg.append(", ");
-                    }
-                    if (arg == null) {
-                        msg.append("null");
-                    } else if (arg instanceof byte[]) {
-                        msg.append("<byte[]>");
-                    } else if (arg instanceof String) {
-                        msg.append("\"").append((String)arg).append("\"");
-                    } else {
-                        msg.append(arg);
-                    }
-                }
-                msg.append("]");
-            }
-            if (mException != null) {
-                msg.append(", exception=\"").append(mException.getMessage()).append("\"");
-            }
-        }
-
-        private String getStatus() {
-            if (!mFinished) {
-                return "running";
-            }
-            return mException != null ? "failed" : "succeeded";
-        }
-
-        private String getFormattedStartTime() {
-            return sDateFormat.format(new Date(mStartTime));
         }
     }
 }

@@ -366,60 +366,6 @@ static jstring nativeExecuteForString(JNIEnv* env, jclass clazz,
     return NULL;
 }
 
-static int createAshmemRegionWithData(JNIEnv* env, const void* data, size_t length) {
-#if 0
-    int error = 0;
-    int fd = ashmem_create_region(NULL, length);
-    if (fd < 0) {
-        error = errno;
-        ALOGE("ashmem_create_region failed: %s", strerror(error));
-    } else {
-        if (length > 0) {
-            void* ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-            if (ptr == MAP_FAILED) {
-                error = errno;
-                ALOGE("mmap failed: %s", strerror(error));
-            } else {
-                memcpy(ptr, data, length);
-                munmap(ptr, length);
-            }
-        }
-
-        if (!error) {
-            if (ashmem_set_prot_region(fd, PROT_READ) < 0) {
-                error = errno;
-                ALOGE("ashmem_set_prot_region failed: %s", strerror(errno));
-            } else {
-                return fd;
-            }
-        }
-
-        close(fd);
-    }
-
-#endif
-    jniThrowIOException(env, -1);
-    return -1;
-}
-
-static jint nativeExecuteForBlobFileDescriptor(JNIEnv* env, jclass clazz,
-        jlong connectionPtr, jlong statementPtr) {
-    SQLiteConnection* connection = reinterpret_cast<SQLiteConnection*>(connectionPtr);
-    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
-
-    int err = executeOneRowQuery(env, connection, statement);
-    if (err == SQLITE_ROW && sqlite3_column_count(statement) >= 1) {
-        const void* blob = sqlite3_column_blob(statement, 0);
-        if (blob) {
-            int length = sqlite3_column_bytes(statement, 0);
-            if (length >= 0) {
-                return createAshmemRegionWithData(env, blob, length);
-            }
-        }
-    }
-    return -1;
-}
-
 enum CopyRowResult {
     CPR_OK,
     CPR_FULL,
@@ -652,8 +598,6 @@ static JNINativeMethod sMethods[] =
             (void*)nativeExecuteForLong },
     { "nativeExecuteForString", "(JJ)Ljava/lang/String;",
             (void*)nativeExecuteForString },
-    { "nativeExecuteForBlobFileDescriptor", "(JJ)I",
-            (void*)nativeExecuteForBlobFileDescriptor },
     { "nativeExecuteForChangedRowCount", "(JJ)I",
             (void*)nativeExecuteForChangedRowCount },
     { "nativeExecuteForLastInsertedRowId", "(JJ)J",
