@@ -69,7 +69,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
         mSql = sql.trim();
         mCancellationSignal = cancellationSignal;
 
-        final long connectionPtr = db.mSession.mConnection.mConnectionPtr;
+        final long connectionPtr = db.mConnection.mConnectionPtr;
         statementPtr = nativePrepareStatement(connectionPtr, sql);
 
         boolean ok = false;
@@ -99,7 +99,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
     }
 
     void bindArguments(Object[] bindArgs) {
-        final long connectionPtr = this.mDatabase.mSession.mConnection.mConnectionPtr;
+        final long connectionPtr = this.mDatabase.mConnection.mConnectionPtr;
         final int count = bindArgs != null ? bindArgs.length : 0;
         if (count != mNumParameters) {
             String message = "Expected " + mNumParameters + " bind arguments but "
@@ -261,7 +261,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
         final long ptr = this.statementPtr;
         if (ptr != 0) {
             statementPtr = 0;
-            final long connectionPtr = mDatabase.mSession.mConnection.mConnectionPtr;
+            final long connectionPtr = mDatabase.mConnection.mConnectionPtr;
             nativeFinalizeStatement(connectionPtr, ptr);
         }
         if (mBindArgs != null) {
@@ -287,7 +287,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
      */
     public void execute() {
         try {
-            mDatabase.mSession.execute(getSql(), getBindArgs(), null);
+            mDatabase.mConnection.execute(getSql(), getBindArgs(), null); // might throw
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
@@ -303,8 +303,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
      */
     public int executeUpdateDelete() {
         try {
-            return mDatabase.mSession.executeForChangedRowCount(
-                    getSql(), getBindArgs(), null);
+            return mDatabase.mConnection.executeForChangedRowCount(getSql(), getBindArgs(), null); // might throw
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
@@ -321,8 +320,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
      */
     public long executeInsert() {
         try {
-            return mDatabase.mSession.executeForLastInsertedRowId(
-                    getSql(), getBindArgs(), null);
+            return mDatabase.mConnection.executeForLastInsertedRowId(getSql(), getBindArgs(), null); // might throw
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
@@ -339,8 +337,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
      */
     public long simpleQueryForLong() {
         try {
-            return mDatabase.mSession.executeForLong(
-                    getSql(), getBindArgs(), null);
+            return mDatabase.mConnection.executeForLong(getSql(), getBindArgs(), null); // might throw
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
@@ -357,8 +354,7 @@ public final class SQLitePreparedStatement implements AutoCloseable {
      */
     public String simpleQueryForString() {
         try {
-            return mDatabase.mSession.executeForString(
-                    getSql(), getBindArgs(), null);
+            return mDatabase.mConnection.executeForString(getSql(), getBindArgs(), null); // might throw
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();
             throw ex;
@@ -384,23 +380,23 @@ public final class SQLitePreparedStatement implements AutoCloseable {
      * @throws OperationCanceledException if the operation was canceled.
      */
     int fillWindow(CursorWindow window, int startPos, int requiredPos, boolean countAllRows) {
-        final long mConnectionPtr = mDatabase.mSession.mConnection.mConnectionPtr;
+        final long mConnectionPtr = mDatabase.mConnection.mConnectionPtr;
         window.acquireReference();
         try {
             SQLiteNative.nativeResetStatementAndClearBindings(mConnectionPtr, statementPtr);
             bindArguments(mBindArgs);
 
-                mDatabase.mSession.mConnection.attachCancellationSignal(mCancellationSignal);
+                mDatabase.mConnection.attachCancellationSignal(mCancellationSignal);
                 try {
                     final long result = nativeExecuteForCursorWindow(
-                            mDatabase.mSession.mConnection.mConnectionPtr, statementPtr, window.mWindowPtr,
+                            mDatabase.mConnection.mConnectionPtr, statementPtr, window.mWindowPtr,
                             startPos, requiredPos, countAllRows);
                     int actualPos = (int)(result >> 32);
                     int countedRows = (int)result;
                     window.setStartPosition(actualPos);
                     return countedRows;
                 } finally {
-                    mDatabase.mSession.mConnection.detachCancellationSignal(mCancellationSignal);
+                    mDatabase.mConnection.detachCancellationSignal(mCancellationSignal);
                 }
         } catch (SQLiteDatabaseCorruptException ex) {
             mDatabase.onCorruption();

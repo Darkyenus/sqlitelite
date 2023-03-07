@@ -94,7 +94,7 @@ public class DatabaseErrorHandlerTest {
         } catch (SQLiteDiskIOException e) {
             //
             // this test used to produce a corrupted db. but with new sqlite it instead reports
-            // Disk I/O error. meh..
+            // Disk I/O error. meh...
             // need to figure out how to cause corruption in db
             //
             // expected

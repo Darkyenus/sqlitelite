@@ -46,7 +46,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@SuppressWarnings({"deprecation", "ResultOfMethodCallIgnored"})
+@SuppressWarnings({"ResultOfMethodCallIgnored"})
 @RunWith(AndroidJUnit4.class)
 public class DatabaseCursorTest {
 
@@ -364,13 +364,12 @@ public class DatabaseCursorTest {
         final int count = 600;
         mDatabase.beginTransactionDeferred();
         for (int i = 0; i < count; i++) {
-            StringBuilder sql = new StringBuilder(2100);
-            sql.append("INSERT INTO test (txt, data) VALUES ('");
-            sql.append(randomString);
-            sql.append("','");
-            sql.append(i);
-            sql.append("');");
-            mDatabase.execSQL(sql.toString());
+            String sql = "INSERT INTO test (txt, data) VALUES ('" +
+                    randomString +
+                    "','" +
+                    i +
+                    "');";
+            mDatabase.execSQL(sql);
         }
         mDatabase.commitTransaction();
 

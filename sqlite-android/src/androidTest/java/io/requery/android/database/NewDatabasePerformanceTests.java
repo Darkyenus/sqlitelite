@@ -35,6 +35,7 @@ import java.util.Random;
  * Database Performance Tests
  * 
  */
+@SuppressWarnings("NewClassNamingConvention")
 public class NewDatabasePerformanceTests {
 
     // Edit this to change the test run times.  The original is 100.
@@ -56,7 +57,7 @@ public class NewDatabasePerformanceTests {
             mDatabase =
                     SQLiteDatabase.openOrCreateDatabase(mDatabaseFile.getPath(),
                             null);
-            assertTrue(mDatabase != null);
+            assertNotNull(mDatabase);
             mDatabase.setVersion(CURRENT_DATABASE_VERSION);
         }
 
@@ -139,7 +140,7 @@ public class NewDatabasePerformanceTests {
     public static class InsertIndexed1000 extends PerformanceBase {
         private static final int SIZE = 10 * kMultiplier;
 
-        private String[] statements = new String[SIZE];
+        private final String[] statements = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -173,7 +174,7 @@ public class NewDatabasePerformanceTests {
     public static class Select100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
 
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -212,7 +213,7 @@ public class NewDatabasePerformanceTests {
     public static class SelectStringComparison100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
 
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -249,7 +250,7 @@ public class NewDatabasePerformanceTests {
     public static class SelectIndex100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
 
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -401,7 +402,7 @@ public class NewDatabasePerformanceTests {
     public static class SelectSubQIndex100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
 
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -452,7 +453,7 @@ public class NewDatabasePerformanceTests {
     public static class SelectIndexStringComparison100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
 
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -612,7 +613,7 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectStringStartsWith100 extends PerformanceBase {
         private static final int SIZE = kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -715,7 +716,7 @@ public class NewDatabasePerformanceTests {
 
     public static class DeleteWhere1000 extends PerformanceBase {
         private static final int SIZE = 10 * kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -752,7 +753,7 @@ public class NewDatabasePerformanceTests {
 
     public static class DeleteIndexWhere1000 extends PerformanceBase {
         private static final int SIZE = 10 * kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -790,7 +791,7 @@ public class NewDatabasePerformanceTests {
 
     public static class UpdateIndexWhere1000 extends PerformanceBase {
         private static final int SIZE = 10 * kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
         ContentValues[] mValues = new ContentValues[SIZE];
 
         @Before
@@ -834,7 +835,7 @@ public class NewDatabasePerformanceTests {
 
     public static class UpdateWhere1000 extends PerformanceBase {
         private static final int SIZE = 10 * kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
         ContentValues[] mValues = new ContentValues[SIZE];
 
         @Before
@@ -1007,7 +1008,7 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectStringStartsWith10000 extends PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {
@@ -1083,7 +1084,7 @@ public class NewDatabasePerformanceTests {
 
     public static class SelectInteger10000 extends PerformanceBase {
         private static final int SIZE = 100 * kMultiplier;
-        private String[] where = new String[SIZE];
+        private final String[] where = new String[SIZE];
 
         @Before
         public void setUp() {

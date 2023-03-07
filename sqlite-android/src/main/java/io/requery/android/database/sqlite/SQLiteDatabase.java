@@ -43,6 +43,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Map;
 
+import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_DEFERRED;
+import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_EXCLUSIVE;
+import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_IMMEDIATE;
+
 /**
  * Exposes methods to manage a SQLite database.
  *
@@ -64,7 +68,7 @@ import java.util.Map;
  * to the current locale.
  * </p>
  */
-@SuppressWarnings({"unused", "JavaDoc", "TryFinallyCanBeTryWithResources"})
+@SuppressWarnings({"unused", "JavaDoc"})
 @SuppressLint("ShiftFlags") // suppressed for readability with native code
 public final class SQLiteDatabase extends SQLiteClosable {
 
@@ -80,7 +84,10 @@ public final class SQLiteDatabase extends SQLiteClosable {
 
     private static final int EVENT_DB_CORRUPT = 75004;
 
-    public SQLiteSession mSession = null;
+
+    private boolean inTransaction = false;
+    private boolean transactionSuccessful = false;
+    public SQLiteConnection mConnection = null;
 
     // Error handler to be used when SQLite returns corruption errors.
     // INVARIANT: Immutable.
@@ -223,14 +230,14 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     private void dispose() {
-        final SQLiteSession session;
+        final SQLiteConnection connection;
         synchronized (mLock) {
-            session = mSession;
-            mSession = null;
+            connection = mConnection;
+            mConnection = null;
         }
 
-        if (session != null) {
-            session.close();
+        if (connection != null) {
+            connection.close();
         }
     }
 
@@ -291,7 +298,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * </pre>
      */
     public void beginTransactionExclusive() {
-        beginTransaction(SQLiteSession.TRANSACTION_MODE_EXCLUSIVE);
+        beginTransaction(TRANSACTION_MODE_EXCLUSIVE);
     }
 
     /**
@@ -315,20 +322,38 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * </pre>
      */
     public void beginTransactionImmediate() {
-        beginTransaction(SQLiteSession.TRANSACTION_MODE_IMMEDIATE);
+        beginTransaction(TRANSACTION_MODE_IMMEDIATE);
     }
 
     /**
      * Begins a transaction in DEFERRED mode.
      */
     public void beginTransactionDeferred() {
-        beginTransaction(SQLiteSession.TRANSACTION_MODE_DEFERRED);
+        beginTransaction(TRANSACTION_MODE_DEFERRED);
     }
 
     private void beginTransaction(int mode) {
         acquireReference();
         try {
-            mSession.beginTransaction(mode, null);
+            if (inTransaction) {
+                throw new IllegalStateException("Can't begin nested transaction");
+            }
+
+            // Execute SQL might throw a runtime exception.
+            switch (mode) {
+                case TRANSACTION_MODE_IMMEDIATE:
+                    mConnection.execute("BEGIN IMMEDIATE;", null, null); // might throw
+                    break;
+                case TRANSACTION_MODE_EXCLUSIVE:
+                    mConnection.execute("BEGIN EXCLUSIVE;", null, null); // might throw
+                    break;
+                default:
+                    mConnection.execute("BEGIN;", null, null); // might throw
+                    break;
+            }
+
+            inTransaction = true;
+            transactionSuccessful = false;
         } finally {
             releaseReference();
         }
@@ -341,7 +366,16 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public void endTransaction() {
         acquireReference();
         try {
-            mSession.endTransaction();
+            if (!inTransaction) {
+                throw new IllegalStateException("No transaction in progress to end");
+            }
+
+            inTransaction = false;
+            if (transactionSuccessful) {
+                mConnection.execute("COMMIT;", null, null); // might throw
+            } else {
+                mConnection.execute("ROLLBACK;", null, null); // might throw
+            }
         } finally {
             releaseReference();
         }
@@ -350,8 +384,15 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public void commitTransaction() {
         acquireReference();
         try {
-            mSession.setTransactionSuccessful();
-            mSession.endTransaction();
+            if (!inTransaction) {
+                throw new IllegalStateException("No transaction to mark successful");
+            }
+            if (transactionSuccessful) {
+                throw new IllegalStateException("Transaction is already successful");
+            }
+            transactionSuccessful = true;
+            inTransaction = false;
+            mConnection.execute("COMMIT;", null, null); // might throw
         } finally {
             releaseReference();
         }
@@ -369,21 +410,13 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public void setTransactionSuccessful() {
         acquireReference();
         try {
-            mSession.setTransactionSuccessful();
-        } finally {
-            releaseReference();
-        }
-    }
-
-    /**
-     * Returns true if the current thread has a transaction pending.
-     *
-     * @return True if the current thread is in a transaction.
-     */
-    public boolean inTransaction() {
-        acquireReference();
-        try {
-            return mSession.hasTransaction();
+            if (!inTransaction) {
+                throw new IllegalStateException("No transaction to mark successful");
+            }
+            if (transactionSuccessful) {
+                throw new IllegalStateException("Transaction is already successful");
+            }
+            transactionSuccessful = true;
         } finally {
             releaseReference();
         }
@@ -502,10 +535,10 @@ public final class SQLiteDatabase extends SQLiteClosable {
                 ensureFile(mConfigurationLocked.path);
             }
             try {
-                mSession = new SQLiteSession(this);
+                mConnection = new SQLiteConnection(this, this.mConfigurationLocked);
             } catch (SQLiteDatabaseCorruptException ex) {
                 onCorruption();
-                mSession = new SQLiteSession(this);
+                mConnection = new SQLiteConnection(this, this.mConfigurationLocked);
             }
         } catch (SQLiteException ex) {
             Log.e(TAG, "Failed to open database '" + getLabel() + "'.", ex);
@@ -1163,7 +1196,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      */
     public boolean isOpen() {
         synchronized (mLock) {
-            return mSession != null;
+            return mConnection != null;
         }
     }
 
@@ -1207,7 +1240,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     public boolean isDatabaseIntegrityOk() {
         acquireReference();
         try {
-            String rslt = mSession.mConnection.executePragma("integrity_check", "1");
+            String rslt = mConnection.executePragma("integrity_check", "1");
             if ("ok".equalsIgnoreCase(rslt)) {
                 return true;
             } else {
@@ -1221,7 +1254,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     private void throwIfNotOpenLocked() {
-        if (mSession == null) {
+        if (mConnection == null) {
             throw new IllegalStateException("The database '" + mConfigurationLocked.label
                     + "' is not open.");
         }

@@ -31,6 +31,7 @@ import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -41,10 +42,10 @@ public class DatabaseLocaleTest {
     private SQLiteDatabase mDatabase;
 
     private static final String[] STRINGS = {
-        "c\u00f4t\u00e9",
+        "côté",
         "cote",
-        "c\u00f4te",
-        "cot\u00e9",
+        "côte",
+        "coté",
         "boy",
         "dog",
         "COTE",
@@ -88,7 +89,7 @@ public class DatabaseLocaleTest {
     public void testLocaleInsertOrder() {
         insertStrings();
         String[] results = query("SELECT data FROM test");
-        assertEquals(STRINGS, results);
+        assertArrayEquals(STRINGS, results);
     }
 
     @SmallTest

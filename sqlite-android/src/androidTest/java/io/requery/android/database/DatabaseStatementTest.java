@@ -242,9 +242,10 @@ public class DatabaseStatementTest {
         c.close();
     }
 
+    @SuppressWarnings("NewClassNamingConvention")
     private static class StatementTestThread extends Thread {
-        private SQLiteDatabase mDatabase;
-        private SQLitePreparedStatement mStatement;
+        private final SQLiteDatabase mDatabase;
+        private final SQLitePreparedStatement mStatement;
 
         private StatementTestThread(SQLiteDatabase db, SQLitePreparedStatement statement) {
             super();

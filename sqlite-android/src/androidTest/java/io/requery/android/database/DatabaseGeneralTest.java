@@ -37,7 +37,6 @@ import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.util.Arrays;
-import java.util.Locale;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -49,7 +48,6 @@ import static org.junit.Assert.fail;
 @SuppressWarnings({"deprecated", "ResultOfMethodCallIgnored", "deprecation"})
 @RunWith(AndroidJUnit4.class)
 public class DatabaseGeneralTest {
-    private static final String TAG = "DatabaseGeneralTest";
 
     private static final String sString1 = "this is a test";
     private static final String sString2 = "and yet another test";
@@ -105,11 +103,13 @@ public class DatabaseGeneralTest {
         ContentValues values = new ContentValues(1);
         values.put("data", "this is an updated test");
         assertEquals(1, mDatabase.update("test", values, "_id=1", null));
-        SQLiteCursor c = mDatabase.query("SELECT data FROM test WHERE _id=1");
-        assertNotNull(c);
-        assertEquals(1, c.getCount());
-        c.moveToFirst();
-        String value = c.getString(0);
+        String value;
+        try (SQLiteCursor c = mDatabase.query("SELECT data FROM test WHERE _id=1")) {
+            assertNotNull(c);
+            assertEquals(1, c.getCount());
+            c.moveToFirst();
+            value = c.getString(0);
+        }
         assertEquals("this is an updated test", value);
     }
 
@@ -141,35 +141,6 @@ public class DatabaseGeneralTest {
         try (SQLiteCursor c = mDatabase.query("SELECT * FROM test WHERE _id=1")) {
             assertNotNull(c);
             assertEquals(0, c.getCount());
-        }
-    }
-
-    private void phoneNumberCompare(String phone1, String phone2, boolean equal, 
-            boolean useStrictComparation) {
-        String[] temporalPhoneNumbers = new String[2];
-        temporalPhoneNumbers[0] = phone1;
-        temporalPhoneNumbers[1] = phone2;
-
-        SQLiteCursor cursor = mDatabase.rawQuery(
-                String.format(Locale.ROOT,
-                        "SELECT CASE WHEN PHONE_NUMBERS_EQUAL(?, ?, %d) " +
-                        "THEN 'equal' ELSE 'not equal' END",
-                        (useStrictComparation ? 1 : 0)),
-                temporalPhoneNumbers);
-        try {
-            assertNotNull(cursor);
-            assertTrue(cursor.moveToFirst());
-            if (equal) {
-                assertEquals(String.format("Unexpectedly, \"%s != %s\".", phone1, phone2),
-                        "equal", cursor.getString(0));
-            } else {
-                assertEquals(String.format("Unexpectedly, \"%s\" == \"%s\".", phone1, phone2),
-                        "not equal", cursor.getString(0));
-            }
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
     }
 
@@ -324,9 +295,9 @@ public class DatabaseGeneralTest {
         // Test a two-level transaction.
         setNum(0);
         mDatabase.beginTransactionExclusive();
-        assertThrowsIllegalState(() -> {mDatabase.beginTransactionDeferred();});
-        assertThrowsIllegalState(() -> {mDatabase.beginTransactionImmediate();});
-        assertThrowsIllegalState(() -> {mDatabase.beginTransactionExclusive();});
+        assertThrowsIllegalState(() -> mDatabase.beginTransactionDeferred());
+        assertThrowsIllegalState(() -> mDatabase.beginTransactionImmediate());
+        assertThrowsIllegalState(() -> mDatabase.beginTransactionExclusive());
         setNum(1);
         mDatabase.setTransactionSuccessful();
         mDatabase.endTransaction();
