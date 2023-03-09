@@ -36,10 +36,11 @@ sqlite_flags := \
     -DSQLITE_DISABLE_DIRSYNC \
     -DSQLITE_OMIT_DESERIALIZE \
     -DSQLITE_OMIT_TRACE \
-    -O3
+    -DSQLITE_OMIT_LOAD_EXTENSION \
+    -Os
 
 LOCAL_CFLAGS += $(sqlite_flags)
-LOCAL_CFLAGS += -Wno-unused-parameter -Wno-int-to-pointer-cast
+LOCAL_CFLAGS += -Wno-unused-parameter -Wno-int-to-pointer-cast -Wall
 LOCAL_CFLAGS += -Wno-uninitialized -Wno-parentheses
 LOCAL_CPPFLAGS += -Wno-conversion-null -Wunused
 
@@ -53,8 +54,6 @@ endif
 LOCAL_SRC_FILES:= \
 	android_database_SQLiteCommon.cpp \
 	SQLiteNative.cpp \
-	android_database_CursorWindow.cpp \
-	CursorWindow.cpp \
 	JNIHelp.cpp \
 	JNIString.cpp
 
@@ -63,7 +62,7 @@ LOCAL_SRC_FILES += sqlite3ex.c
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
 LOCAL_MODULE:= libsqlite3l
-LOCAL_LDLIBS += -ldl -llog -latomic
+LOCAL_LDLIBS += -llog
 
 include $(BUILD_SHARED_LIBRARY)
 

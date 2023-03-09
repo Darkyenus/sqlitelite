@@ -28,7 +28,6 @@
 #include "JNIHelp.h"
 #include "ALog-priv.h"
 #include "android_database_SQLiteCommon.h"
-#include "CursorWindow.h"
 
 // Set to 1 to use UTF16 storage for localized indexes.
 #define UTF16_STORAGE 0
@@ -55,10 +54,6 @@ static const int BUSY_TIMEOUT_MS = 2500;
 static const int SOFT_HEAP_LIMIT = 8 * 1024 * 1024;
 
 static JavaVM *gpJavaVM = 0;
-
-static struct {
-    jclass clazz;
-} gStringClassInfo;
 
 // Called each time a message is logged.
 static void sqliteLogCallback(void* data, int iErrCode, const char* zMsg) {
@@ -598,8 +593,6 @@ static JNINativeMethod sMethods[] =
             (void*)nativeReleaseMemory },
 };
 
-extern int register_android_database_CursorWindow(JNIEnv *env);
-
 } // namespace android
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
@@ -608,18 +601,12 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
   android::gpJavaVM = vm;
   vm->GetEnv((void**)&env, JNI_VERSION_1_4);
 
-  jclass clazz;
-  FIND_CLASS(clazz, "java/lang/String");
-  android::gStringClassInfo.clazz = jclass(env->NewGlobalRef(clazz));
-
   jniRegisterNativeMethods(env,
       "com/darkyen/sqlite/SQLiteNative",
       android::sMethods, NELEM(android::sMethods)
   );
 
   android::sqliteInitialize();
-
-  android::register_android_database_CursorWindow(env);
 
   return JNI_VERSION_1_4;
 }

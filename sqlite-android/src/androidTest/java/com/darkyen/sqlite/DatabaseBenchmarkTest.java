@@ -4,10 +4,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.filters.Suppress;
-import io.requery.android.database.CursorWindow;
 import io.requery.android.database.sqlite.SQLiteCursor;
-import io.requery.android.database.sqlite.SQLiteQuery;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -55,7 +52,6 @@ public class DatabaseBenchmarkTest {
         mDatabaseLight.command("PRAGMA synchronous=0");
     }
 
-    @Suppress
     @Test
     public void writeBenchmark() {
         final int roundCycles = 10_000;
