@@ -1,8 +1,8 @@
 package com.darkyen.sqlite;
 
 import android.database.SQLException;
+import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
-import io.requery.android.database.sqlite.SQLiteDatabase;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
 
@@ -341,4 +341,12 @@ public class SQLiteConnection implements AutoCloseable {
     public static int releaseMemory() {
         return nativeReleaseMemory();
     }
+
+    public static final int SQLITE_OPEN_READONLY       = 0x00000001;
+    public static final int SQLITE_OPEN_READWRITE      = 0x00000002;
+    public static final int SQLITE_OPEN_CREATE         = 0x00000004;
+    public static final int SQLITE_OPEN_MEMORY         = 0x00000080;
+    public static final int SQLITE_OPEN_NOMUTEX        = 0x00008000;
+    public static final int SQLITE_OPEN_FULLMUTEX      = 0x00010000;
+    public static final int SQLITE_OPEN_NOFOLLOW       = 0x01000000;
 }

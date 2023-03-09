@@ -1,11 +1,15 @@
 package com.darkyen.sqlite;
 
+import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import android.util.Log;
-import io.requery.android.database.sqlite.SQLiteDatabase;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+
+import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_CREATE;
+import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_NOFOLLOW;
+import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_READWRITE;
 
 public abstract class SQLiteDelegate {
     private static final String TAG = "SQLiteDelegate";
@@ -16,7 +20,7 @@ public abstract class SQLiteDelegate {
      * If the value is 0 or less, it means "don't care". Otherwise, the version is enforced.
      */
     protected int version = 0;
-    protected @SQLiteDatabase.OpenFlags int openFlags = SQLiteDatabase.CREATE_IF_NECESSARY;
+    protected int openFlags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOFOLLOW;
     /** True if foreign key constraints are enabled. Default is false. */
     protected boolean foreignKeyConstraintsEnabled = false;
 

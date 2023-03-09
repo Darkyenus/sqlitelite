@@ -41,7 +41,7 @@ sqlite_flags := \
 LOCAL_CFLAGS += $(sqlite_flags)
 LOCAL_CFLAGS += -Wno-unused-parameter -Wno-int-to-pointer-cast
 LOCAL_CFLAGS += -Wno-uninitialized -Wno-parentheses
-LOCAL_CPPFLAGS += -Wno-conversion-null
+LOCAL_CPPFLAGS += -Wno-conversion-null -Wunused
 
 
 ifeq ($(TARGET_ARCH), arm)

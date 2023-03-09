@@ -45,8 +45,18 @@ android {
     }
 }
 
+repositories {
+    mavenCentral()
+    google()
+    maven { url 'https://jitpack.io' }
+}
+
 dependencies {
     compileOnly 'androidx.annotation:annotation:1.6.0'
+
+    androidTestImplementation 'com.github.requery:sqlite-android:3.39.2'
+    androidTestImplementation 'androidx.sqlite:sqlite:2.2.0'
+    androidTestImplementation 'androidx.core:core:1.9.0'
 
     androidTestImplementation 'androidx.test:core:1.5.0'
     androidTestImplementation 'androidx.test:runner:1.5.2'
@@ -56,7 +66,7 @@ dependencies {
 }
 
 ext {
-    sqliteDistributionUrl = 'https://www.sqlite.org/2022/sqlite-amalgamation-3400100.zip'
+    sqliteDistributionUrl = 'https://www.sqlite.org/2023/sqlite-amalgamation-3410000.zip'
 }
 
 tasks.register('downloadSqlite', Download) {

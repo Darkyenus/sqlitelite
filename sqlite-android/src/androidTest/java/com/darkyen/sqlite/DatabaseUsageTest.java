@@ -39,6 +39,7 @@ public class DatabaseUsageTest {
 
     @After
     public void tearDown() {
+        assertTrue(SQLiteConnection.releaseMemory() >= 0);
         mDatabase.close();
         SQLiteDatabase.deleteDatabase(mDatabaseFile);
     }
