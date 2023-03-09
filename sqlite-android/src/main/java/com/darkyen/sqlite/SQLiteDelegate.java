@@ -3,11 +3,9 @@ package com.darkyen.sqlite;
 import android.database.sqlite.SQLiteException;
 import android.util.Log;
 import io.requery.android.database.sqlite.SQLiteDatabase;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
-import java.io.FileFilter;
 
 public abstract class SQLiteDelegate {
     private static final String TAG = "SQLiteDelegate";
@@ -123,29 +121,8 @@ public abstract class SQLiteDelegate {
         //TODO If the corruption is recoverable, recover
         dbObj.close();
         if (file != null) {
-            int files = deleteDatabase(file);
-            Log.e(TAG, "Deleted "+files+" files of a corrupted database");
+            SQLiteDatabase.deleteDatabase(file);
+            Log.e(TAG, "Deleted files of a corrupted database: "+file);
         }
-    }
-
-    public static int deleteDatabase(@NotNull File file) {
-        int filesDeleted = 0;
-        if (file.delete()) filesDeleted++;
-        if (new File(file.getPath() + "-journal").delete()) filesDeleted++;
-        if (new File(file.getPath() + "-shm").delete()) filesDeleted++;
-        if (new File(file.getPath() + "-wal").delete()) filesDeleted++;
-
-        File dir = file.getParentFile();
-        if (dir != null) {
-            final String prefix = file.getName() + "-mj";
-            final FileFilter filter = candidate -> candidate.getName().startsWith(prefix);
-            final File[] files = dir.listFiles(filter);
-            if (files != null) {
-                for (File masterJournal : files) {
-                    if (masterJournal.delete()) filesDeleted++;
-                }
-            }
-        }
-        return filesDeleted;
     }
 }

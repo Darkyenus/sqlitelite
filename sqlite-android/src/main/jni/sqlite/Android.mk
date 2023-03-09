@@ -58,7 +58,7 @@ LOCAL_SRC_FILES:= \
 	JNIHelp.cpp \
 	JNIString.cpp
 
-LOCAL_SRC_FILES += sqlite3.c
+LOCAL_SRC_FILES += sqlite3ex.c
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 

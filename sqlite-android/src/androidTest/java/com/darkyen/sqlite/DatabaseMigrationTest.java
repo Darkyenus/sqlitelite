@@ -1,6 +1,7 @@
 package com.darkyen.sqlite;
 
 import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.After;
@@ -23,14 +24,12 @@ public class DatabaseMigrationTest {
     public void setUp() {
         File dbDir = ApplicationProvider.getApplicationContext().getDir(this.getClass().getName(), Context.MODE_PRIVATE);
         mDatabaseFile = new File(dbDir, "database_test.db");
-        SQLiteDelegate.deleteDatabase(mDatabaseFile);
-
-
+        SQLiteDatabase.deleteDatabase(mDatabaseFile);
     }
 
     @After
     public void tearDown() {
-        SQLiteDelegate.deleteDatabase(mDatabaseFile);
+        SQLiteDatabase.deleteDatabase(mDatabaseFile);
     }
 
     @Test

@@ -24,7 +24,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include "sqlite3.h"
+#include "sqlite3ex.h"
 #include "JNIHelp.h"
 #include "ALog-priv.h"
 #include "android_database_SQLiteCommon.h"
@@ -395,6 +395,15 @@ static void nativeExecuteAndReset(JNIEnv* env, jclass clazz, jlong connectionPtr
     }
     sqlite3_reset(statement);
 }
+static void nativeExecuteIgnoreAndReset(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+    int err = sqlite3_step(statement);
+    if (err != SQLITE_DONE && err != SQLITE_ROW) {
+        throw_sqlite3_exception(env, dbConnection, "Unexpected error");
+    }
+    sqlite3_reset(statement);
+}
 static jlong nativeExecuteForLongAndReset(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr, jlong defaultValue) {
     sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
     sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
@@ -519,6 +528,97 @@ static jlong nativeExecuteForChangedRowsAndReset(JNIEnv* env, jclass clazz, jlon
     }
     sqlite3_reset(statement);
     return result;
+}
+
+static jboolean nativeCursorStep(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+    int err = sqlite3_step(statement);
+    if (err == SQLITE_ROW) {
+        return JNI_TRUE;
+    } else if (err == SQLITE_DONE) {
+        return JNI_FALSE;
+    } else {
+        throw_sqlite3_exception(env, dbConnection, NULL);
+        return JNI_FALSE;
+    }
+}
+static void maybe_throw_after_column_get(JNIEnv* env, sqlite3* dbConnection) {
+    int err = sqlite3_extended_errcode(dbConnection);
+    if (err == SQLITE_OK) return;
+    throw_sqlite3_exception(env, err, sqlite3_errmsg(dbConnection), "Column get failed");
+}
+static jlong nativeCursorGetLong(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr, jint index) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+    sqlite3ex_clear_errcode(dbConnection);
+    int type = sqlite3_column_type(statement, index);
+    jlong result = type == SQLITE_NULL ? 0 : (jlong) sqlite3_column_int64(statement, index);
+    maybe_throw_after_column_get(env, dbConnection);
+    return result;
+}
+static jdouble nativeCursorGetDouble(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr, jint index) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+    sqlite3ex_clear_errcode(dbConnection);
+    int type = sqlite3_column_type(statement, index);
+    jdouble result = type == SQLITE_NULL ? 0.0 : (jdouble) sqlite3_column_double(statement, index);
+    maybe_throw_after_column_get(env, dbConnection);
+    return result;
+}
+static jstring nativeCursorGetString(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr, jint index) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+    sqlite3ex_clear_errcode(dbConnection);
+
+    int type = sqlite3_column_type(statement, index);
+    jstring result = NULL;
+    if (type != SQLITE_NULL) {
+        const jchar* text = static_cast<const jchar*>(sqlite3_column_text16(statement, index));
+        size_t length = sqlite3_column_bytes16(statement, index) / sizeof(jchar);
+        result = env->NewString(text, length);
+    }
+
+    maybe_throw_after_column_get(env, dbConnection);
+    return result;
+}
+static jbyteArray nativeCursorGetBlob(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr, jint index) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+    sqlite3ex_clear_errcode(dbConnection);
+
+    int type = sqlite3_column_type(statement, index);
+    jbyteArray result = NULL;
+    if (type != SQLITE_NULL) {
+        const void* blob = sqlite3_column_blob(statement, index);
+        size_t length = sqlite3_column_bytes(statement, index);
+        result = env->NewByteArray(length);
+        if (length > 0) {
+            env->SetByteArrayRegion(result, 0, (jsize) length, static_cast<const jbyte*>(blob));
+        }
+    }
+
+    maybe_throw_after_column_get(env, dbConnection);
+    return result;
+}
+
+static void nativeResetStatement(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+
+    int err = sqlite3_reset(statement);
+    if (err != SQLITE_OK) {
+        throw_sqlite3_exception(env, dbConnection, NULL);
+    }
+}
+static void nativeClearBindings(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
+    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
+
+    int err = sqlite3_clear_bindings(statement);
+    if (err != SQLITE_OK) {
+        throw_sqlite3_exception(env, dbConnection, NULL);
+    }
 }
 
 enum CopyRowResult {
@@ -755,12 +855,21 @@ static JNINativeMethod sMethods[] =
             (void*)nativeExecuteForLastInsertedRowId },
 
     { "nativeExecuteAndReset", "(JJ)V", (void*) nativeExecuteAndReset },
+    { "nativeExecuteIgnoreAndReset", "(JJ)V", (void*) nativeExecuteIgnoreAndReset },
     { "nativeExecuteForLongAndReset", "(JJJ)J", (void*) nativeExecuteForLongAndReset },
     { "nativeExecuteForDoubleAndReset", "(JJD)D", (void*) nativeExecuteForDoubleAndReset },
     { "nativeExecuteForStringOrNullAndReset", "(JJ)Ljava/lang/String;", (void*) nativeExecuteForStringOrNullAndReset },
     { "nativeExecuteForBlobOrNullAndReset", "(JJ)[B", (void*) nativeExecuteForBlobOrNullAndReset },
     { "nativeExecuteForLastInsertedRowIDAndReset", "(JJ)J", (void*) nativeExecuteForLastInsertedRowIDAndReset },
     { "nativeExecuteForChangedRowsAndReset", "(JJ)J", (void*) nativeExecuteForChangedRowsAndReset },
+
+    { "nativeCursorStep", "(JJ)Z", (void*) nativeCursorStep },
+    { "nativeCursorGetLong", "(JJI)J", (void*) nativeCursorGetLong },
+    { "nativeCursorGetDouble", "(JJI)D", (void*) nativeCursorGetDouble },
+    { "nativeCursorGetString", "(JJI)Ljava/lang/String;", (void*) nativeCursorGetString },
+    { "nativeCursorGetBlob", "(JJI)[B", (void*) nativeCursorGetBlob },
+    { "nativeResetStatement", "(JJ)V", (void*) nativeResetStatement },
+    { "nativeClearBindings", "(JJ)V", (void*) nativeClearBindings },
 
     { "nativeExecuteForCursorWindow", "(JJJIIZ)J",
             (void*)nativeExecuteForCursorWindow },

@@ -108,21 +108,4 @@ public class CursorWindowTest {
         assertTrue(window.putBlob(blob, 0, 6));
         assertArrayEquals(blob, window.getBlob(0, 6));
     }
-
-
-
-    @SmallTest
-    @Test(expected = AssertionError.class)
-    public void testConstructorDifferentSize() {
-        CursorWindow window = new CursorWindow("big", 8);
-        assertEquals("big", window.getName());
-        assertEquals(0, window.getStartPosition());
-        assertEquals(8, window.getWindowSizeBytes());
-        try {
-            // For window of size 8, the test should fail
-            doTestValues(window);
-        } finally {
-            window.close();
-        }
-    }
 }

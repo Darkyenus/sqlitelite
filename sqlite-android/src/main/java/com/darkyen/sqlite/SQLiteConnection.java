@@ -3,6 +3,7 @@ package com.darkyen.sqlite;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteException;
 import io.requery.android.database.sqlite.SQLiteDatabase;
+import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -144,7 +145,7 @@ public class SQLiteConnection implements AutoCloseable {
     private void executeCacheStatement(int statementIndex) {
         SQLiteStatement stmt = statementCache[statementIndex];
         if (stmt == null) {
-            String sql;
+            @Language("RoomSql") String sql;
             switch (statementIndex) {
                 case STATEMENT_BEGIN_DEFERRED_TRANSACTION:
                     sql = "BEGIN DEFERRED TRANSACTION";
@@ -166,13 +167,16 @@ public class SQLiteConnection implements AutoCloseable {
             //noinspection resource
             statementCache[statementIndex] = stmt = unmanagedStatement(sql);
         }
-        stmt.executeForVoid();
+        stmt.executeForNothing();
     }
 
     /**
      * Create a new statement that is not automatically closed with the database.
      */
-    private @NotNull SQLiteStatement unmanagedStatement(@NotNull String sql) {
+    private @NotNull SQLiteStatement unmanagedStatement(
+            @NotNull
+            @Language("RoomSql"/*Should be just SQL, but that is not supported on community :( */)
+            String sql) {
         long statementPtr = nativePrepareStatement(connectionPtr(), sql);
         return new SQLiteStatement(this, statementPtr);
     }
@@ -184,7 +188,10 @@ public class SQLiteConnection implements AutoCloseable {
      *
      * @param sql one SQL command, without trailing semicolon
      */
-    public @NotNull SQLiteStatement statement(@NotNull String sql) {
+    public @NotNull SQLiteStatement statement(
+            @NotNull
+            @Language("RoomSql"/*Should be just SQL, but that is not supported on community :( */)
+            String sql) {
         final SQLiteStatement statement = unmanagedStatement(sql);
         statement.managementIndex = managedStatements.size();
         managedStatements.add(statement);
@@ -212,9 +219,11 @@ public class SQLiteConnection implements AutoCloseable {
     /**
      * Perform a DDL command (CREATE, DROP, ALTER, etc.) that returns no rows.
      */
-    public void command(@NotNull String sql) {
+    public void command(@NotNull
+                        @Language("RoomSql"/*Should be just SQL, but that is not supported on community :( */)
+                        String sql) {
         try (SQLiteStatement statement = unmanagedStatement(sql)) {
-            statement.executeForVoid();
+            statement.execute();
         }
     }
 

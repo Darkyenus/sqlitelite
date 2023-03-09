@@ -24,6 +24,7 @@ public final class SQLiteNative {
                                               int index, byte[] value);
 
     public static native void nativeExecuteAndReset(long connectionPtr, long statementPtr);
+    public static native void nativeExecuteIgnoreAndReset(long connectionPtr, long statementPtr);
     public static native long nativeExecuteForLongAndReset(long connectionPtr, long statementPtr, long defaultValue);
     public static native double nativeExecuteForDoubleAndReset(long connectionPtr, long statementPtr, double defaultValue);
     public static native String nativeExecuteForStringOrNullAndReset(long connectionPtr, long statementPtr);
@@ -31,9 +32,15 @@ public final class SQLiteNative {
     public static native long nativeExecuteForLastInsertedRowIDAndReset(long connectionPtr, long statementPtr);
     public static native long nativeExecuteForChangedRowsAndReset(long connectionPtr, long statementPtr);
 
+    public static native boolean nativeCursorStep(long connectionPtr, long statementPtr);
+    public static native long nativeCursorGetLong(long connectionPtr, long statementPtr, int index);
+    public static native double nativeCursorGetDouble(long connectionPtr, long statementPtr, int index);
+    public static native String nativeCursorGetString(long connectionPtr, long statementPtr, int index);
+    public static native byte[] nativeCursorGetBlob(long connectionPtr, long statementPtr, int index);
+    public static native void nativeResetStatement(long connectionPtr, long statementPtr);
+    public static native void nativeClearBindings(long connectionPtr, long statementPtr);
 
-    public static native void nativeResetStatementAndClearBindings(
-            long connectionPtr, long statementPtr);
+    public static native void nativeResetStatementAndClearBindings(long connectionPtr, long statementPtr);
     public static native void nativeExecute(long connectionPtr, long statementPtr);
     public static native String nativeExecutePragma(long connectionPtr, String sql);
     public static native long nativeExecuteForLong(long connectionPtr, long statementPtr);
