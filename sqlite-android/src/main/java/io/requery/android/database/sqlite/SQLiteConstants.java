@@ -1,4 +1,4 @@
-package com.darkyen.sqlite;
+package io.requery.android.database.sqlite;
 
 public final class SQLiteConstants {
     private SQLiteConstants() {}

@@ -27,10 +27,8 @@ import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabaseCorruptException;
 import android.database.sqlite.SQLiteException;
 import android.os.CancellationSignal;
-import android.os.Looper;
 import android.os.OperationCanceledException;
 import android.text.TextUtils;
-import android.util.EventLog;
 import android.util.Log;
 import androidx.annotation.IntDef;
 import io.requery.android.database.DatabaseErrorHandler;
@@ -43,9 +41,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Map;
 
-import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_DEFERRED;
-import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_EXCLUSIVE;
-import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_IMMEDIATE;
+import static io.requery.android.database.sqlite.SQLiteConstants.TRANSACTION_MODE_DEFERRED;
+import static io.requery.android.database.sqlite.SQLiteConstants.TRANSACTION_MODE_EXCLUSIVE;
+import static io.requery.android.database.sqlite.SQLiteConstants.TRANSACTION_MODE_IMMEDIATE;
 
 /**
  * Exposes methods to manage a SQLite database.
@@ -68,21 +66,10 @@ import static com.darkyen.sqlite.SQLiteConstants.TRANSACTION_MODE_IMMEDIATE;
  * to the current locale.
  * </p>
  */
-@SuppressWarnings({"unused", "JavaDoc"})
 @SuppressLint("ShiftFlags") // suppressed for readability with native code
 public final class SQLiteDatabase extends SQLiteClosable {
 
-    /**
-     * Name of the compiled native library.
-     */
-    public static final String LIBRARY_NAME = "sqlite3x";
-    static {
-        System.loadLibrary(LIBRARY_NAME);
-    }
-
     private static final String TAG = "SQLiteDatabase";
-
-    private static final int EVENT_DB_CORRUPT = 75004;
 
 
     private boolean inTransaction = false;
@@ -241,15 +228,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         }
     }
 
-    /**
-     * Attempts to release memory that SQLite holds but does not require to
-     * operate properly. Typically this memory will come from the page cache.
-     *
-     * @return the number of bytes actually released
-     */
-    public static int releaseMemory() {
-        return SQLiteGlobal.releaseMemory();
-    }
 
     /**
      * Gets a label to use when describing the database in log messages.
@@ -265,15 +243,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * Sends a corruption message to the database error handler.
      */
     void onCorruption() {
-        EventLog.writeEvent(EVENT_DB_CORRUPT, getLabel());
         mErrorHandler.onCorruption(this);
-    }
-
-    private static boolean isMainThread() {
-        // FIXME: There should be a better way to do this.
-        // Would also be nice to have something that would work across Binder calls.
-        Looper looper = Looper.myLooper();
-        return looper != null && looper == Looper.getMainLooper();
     }
 
     /**
@@ -493,8 +463,7 @@ public final class SQLiteDatabase extends SQLiteClosable {
     /**
      * Equivalent to openDatabase(path, factory, CREATE_IF_NECESSARY, errorHandler).
      */
-    public static SQLiteDatabase openOrCreateDatabase(String path,
-            DatabaseErrorHandler errorHandler) {
+    public static SQLiteDatabase openOrCreateDatabase(String path, DatabaseErrorHandler errorHandler) {
         return openDatabase(path, CREATE_IF_NECESSARY, errorHandler);
     }
 
@@ -595,29 +564,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     /**
-     * Finds the name of the first table, which is editable.
-     *
-     * @param tables a list of tables
-     * @return the first table listed
-     */
-    public static String findEditTable(String tables) {
-        if (!TextUtils.isEmpty(tables)) {
-            // find the first word terminated by either a space or a comma
-            int spacepos = tables.indexOf(' ');
-            int commapos = tables.indexOf(',');
-
-            if (spacepos > 0 && (spacepos < commapos || commapos < 0)) {
-                return tables.substring(0, spacepos);
-            } else if (commapos > 0 && (commapos < spacepos || spacepos < 0) ) {
-                return tables.substring(0, commapos);
-            }
-            return tables;
-        } else {
-            throw new IllegalStateException("Invalid tables");
-        }
-    }
-
-    /**
      * Compiles an SQL statement into a reusable pre-compiled statement object.
      * The parameters are identical to {@link #execSQL(String)}. You may put ?s in the
      * statement and fill in those values with {@link SQLitePreparedStatement#bindString}
@@ -680,37 +626,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     /**
-     * Runs the provided SQL and returns a {@link SQLiteCursor} over the result set.
-     *
-     * @param sql the SQL query. The SQL string must not be ; terminated
-     * @param selectionArgs You may include ?s in where clause in the query,
-     *     which will be replaced by the values from selectionArgs.
-     * @param cancellationSignal A signal to cancel the operation in progress, or null if none.
-     * If the operation is canceled, then {@link OperationCanceledException} will be thrown
-     * when the query is executed.
-     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
-     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
-     */
-    public SQLiteCursor rawQuery(String sql, Object[] selectionArgs,
-            CancellationSignal cancellationSignal) {
-        return rawQueryWithFactory(sql, selectionArgs, null, cancellationSignal);
-    }
-
-    /**
-     * Runs the provided SQL and returns a cursor over the result set.
-     *
-     * @param sql the SQL query. The SQL string must not be ; terminated
-     * @param selectionArgs You may include ?s in where clause in the query,
-     *     which will be replaced by the values from selectionArgs.
-     * @param editTable the name of the first table, which is editable
-     * @return A {@link SQLiteCursor} object, which is positioned before the first entry. Note that
-     * {@link SQLiteCursor}s are not synchronized, see the documentation for more details.
-     */
-    public SQLiteCursor rawQueryWithFactory(String sql, Object[] selectionArgs, String editTable) {
-        return rawQueryWithFactory(sql, selectionArgs, editTable, null);
-    }
-
-    /**
      * Runs the provided SQL and returns a cursor over the result set.
      *
      * @param sql the SQL query. The SQL string must not be ; terminated
@@ -766,28 +681,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     /**
-     * Convenience method for inserting a row into the database.
-     *
-     * @param table the table to insert the row into
-     * @param nullColumnHack optional; may be <code>null</code>.
-     *            SQL doesn't allow inserting a completely empty row without
-     *            naming at least one column name.  If your provided <code>values</code> is
-     *            empty, no column names are known and an empty row can't be inserted.
-     *            If not set to null, the <code>nullColumnHack</code> parameter
-     *            provides the name of nullable column name to explicitly insert a NULL into
-     *            in the case where your <code>values</code> is empty.
-     * @param values this map contains the initial column values for the
-     *            row. The keys should be the column names and the values the
-     *            column values
-     * @throws SQLException
-     * @return the row ID of the newly inserted row, or -1 if an error occurred
-     */
-    public long insertOrThrow(String table, String nullColumnHack, ContentValues values)
-            throws SQLException {
-        return insertWithOnConflict(table, nullColumnHack, values, CONFLICT_NONE);
-    }
-
-    /**
      * Convenience method for replacing a row in the database.
      *
      * @param table the table in which to replace the row
@@ -810,28 +703,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
             Log.e(TAG, "Error inserting " + initialValues, e);
             return -1;
         }
-    }
-
-    /**
-     * Convenience method for replacing a row in the database.
-     *
-     * @param table the table in which to replace the row
-     * @param nullColumnHack optional; may be <code>null</code>.
-     *            SQL doesn't allow inserting a completely empty row without
-     *            naming at least one column name.  If your provided <code>initialValues</code> is
-     *            empty, no column names are known and an empty row can't be inserted.
-     *            If not set to null, the <code>nullColumnHack</code> parameter
-     *            provides the name of nullable column name to explicitly insert a NULL into
-     *            in the case where your <code>initialValues</code> is empty.
-     * @param initialValues this map contains the initial column values for
-     *   the row. The key
-     * @throws SQLException
-     * @return the row ID of the newly inserted row, or -1 if an error occurred
-     */
-    public long replaceOrThrow(String table, String nullColumnHack,
-            ContentValues initialValues) throws SQLException {
-        return insertWithOnConflict(table, nullColumnHack, initialValues,
-                CONFLICT_REPLACE);
     }
 
     /**
@@ -1115,7 +986,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
      * For INSERT statements, use any of the following instead.
      * <ul>
      *   <li>{@link #insert(String, String, ContentValues)}</li>
-     *   <li>{@link #insertOrThrow(String, String, ContentValues)}</li>
      *   <li>{@link #insertWithOnConflict(String, String, ContentValues, int)}</li>
      * </ul>
      * <p>
@@ -1178,18 +1048,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
     }
 
     /**
-     * Returns true if the database is in-memory db.
-     *
-     * @return True if the database is in-memory.
-     * @hide
-     */
-    public boolean isInMemoryDatabase() {
-        synchronized (mLock) {
-            return mConfigurationLocked.isInMemoryDb();
-        }
-    }
-
-    /**
      * Returns true if the database is currently open.
      *
      * @return True if the database is currently open (has not been closed).
@@ -1198,16 +1056,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         synchronized (mLock) {
             return mConnection != null;
         }
-    }
-
-    /**
-     * Returns true if the new version code is greater than the current database version.
-     *
-     * @param newVersion The new version code.
-     * @return True if the new version code is greater than the current database version.
-     */
-    public boolean needUpgrade(int newVersion) {
-        return newVersion > getVersion();
     }
 
     /**
@@ -1253,51 +1101,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         }
     }
 
-    private void throwIfNotOpenLocked() {
-        if (mConnection == null) {
-            throw new IllegalStateException("The database '" + mConfigurationLocked.label
-                    + "' is not open.");
-        }
-    }
-
-
-    /**
-     * Query the table for the number of rows in the table.
-     * @param table the name of the table to query
-     * @return the number of rows in the table
-     */
-    public long queryNumEntries(String table) {
-        return queryNumEntries(table, null, null);
-    }
-
-    /**
-     * Query the table for the number of rows in the table.
-     * @param table the name of the table to query
-     * @param selection A filter declaring which rows to return,
-     *              formatted as an SQL WHERE clause (excluding the WHERE itself).
-     *              Passing null will count all rows for the given table
-     * @return the number of rows in the table filtered by the selection
-     */
-    public long queryNumEntries(String table, String selection) {
-        return queryNumEntries(table, selection, null);
-    }
-
-    /**
-     * Query the table for the number of rows in the table.
-     * @param table the name of the table to query
-     * @param selection A filter declaring which rows to return,
-     *              formatted as an SQL WHERE clause (excluding the WHERE itself).
-     *              Passing null will count all rows for the given table
-     * @param selectionArgs You may include ?s in selection,
-     *              which will be replaced by the values from selectionArgs,
-     *              in order that they appear in the selection.
-     *              The values will be bound as Strings.
-     * @return the number of rows in the table filtered by the selection
-     */
-    public long queryNumEntries(String table, String selection, String[] selectionArgs) {
-        String s = (!TextUtils.isEmpty(selection)) ? " where " + selection : "";
-        return longForQuery("select count(*) from " + table + s, selectionArgs);
-    }
 
     /**
      * Utility method to run the query on the db and return the value in the
@@ -1307,17 +1110,6 @@ public final class SQLiteDatabase extends SQLiteClosable {
         try (SQLitePreparedStatement prog = compileStatement(query)) {
             prog.bindAllArgsAsStrings(selectionArgs);
             return prog.simpleQueryForLong();
-        }
-    }
-
-    /**
-     * Utility method to run the query on the db and return the value in the
-     * first column of the first row.
-     */
-    public String stringForQuery(String query, String[] selectionArgs) {
-        try (SQLitePreparedStatement prog = compileStatement(query)) {
-            prog.bindAllArgsAsStrings(selectionArgs);
-            return prog.simpleQueryForString();
         }
     }
 

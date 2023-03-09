@@ -1,23 +1,34 @@
 package com.darkyen.sqlite;
 
-import android.content.Context;
 import android.database.sqlite.SQLiteException;
+import android.util.Log;
 import io.requery.android.database.sqlite.SQLiteDatabase;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.io.File;
+import java.io.FileFilter;
 
 public abstract class SQLiteDelegate {
+    private static final String TAG = "SQLiteDelegate";
 
-    public final Context context;
-    public final String name;
-    protected int version = 1;
+    public final @Nullable File file;
+    /**
+     * The version used when opening a connection.
+     * If the value is 0 or less, it means "don't care". Otherwise, the version is enforced.
+     */
+    protected int version = 0;
     protected @SQLiteDatabase.OpenFlags int openFlags = SQLiteDatabase.CREATE_IF_NECESSARY;
     /** True if foreign key constraints are enabled. Default is false. */
     protected boolean foreignKeyConstraintsEnabled = false;
 
-    protected SQLiteDelegate(Context context, String name) {
-        this.context = context;
-        this.name = name;
+    /**
+     * Create a new delegate. Does not create the database, just this object.
+     * @param file of the database or null for in-memory database
+     */
+    protected SQLiteDelegate(@Nullable File file) {
+        this.file = file;
     }
-
 
     /**
      * Called when the database connection is being configured, to enable features
@@ -33,7 +44,7 @@ public abstract class SQLiteDelegate {
      *
      * @param db The database.
      */
-    public void onConfigure(SQLiteDatabase db) {}
+    public void onConfigure(SQLiteConnection db) {}
 
     /**
      * Called when the database is created for the first time. This is where the
@@ -41,7 +52,7 @@ public abstract class SQLiteDelegate {
      *
      * @param db The database.
      */
-    public abstract void onCreate(SQLiteDatabase db);
+    public abstract void onCreate(SQLiteConnection db);
 
     /**
      * Called when the database needs to be upgraded. The implementation
@@ -63,7 +74,7 @@ public abstract class SQLiteDelegate {
      * @param oldVersion The old database version.
      * @param newVersion The new database version.
      */
-    public abstract void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion);
+    public void onUpgrade(SQLiteConnection db, int oldVersion, int newVersion) {}
 
     /**
      * Called when the database needs to be downgraded. This is strictly similar to
@@ -81,7 +92,7 @@ public abstract class SQLiteDelegate {
      * @param oldVersion The old database version.
      * @param newVersion The new database version.
      */
-    public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+    public void onDowngrade(SQLiteConnection db, int oldVersion, int newVersion) {
         throw new SQLiteException("Can't downgrade database from version " +
                 oldVersion + " to " + newVersion);
     }
@@ -99,6 +110,42 @@ public abstract class SQLiteDelegate {
      *
      * @param db The database.
      */
-    public void onOpen(SQLiteDatabase db) {}
+    public void onOpen(SQLiteConnection db) {}
 
+    /**
+     * The method invoked when database corruption is detected.
+     * @param dbObj the {@link SQLiteConnection} object representing the database on which corruption
+     * is detected.
+     */
+    public void onCorruption(SQLiteConnection dbObj) {
+        final File file = this.file;
+        Log.e(TAG, "Corruption reported by sqlite on database: " + file);
+        //TODO If the corruption is recoverable, recover
+        dbObj.close();
+        if (file != null) {
+            int files = deleteDatabase(file);
+            Log.e(TAG, "Deleted "+files+" files of a corrupted database");
+        }
+    }
+
+    public static int deleteDatabase(@NotNull File file) {
+        int filesDeleted = 0;
+        if (file.delete()) filesDeleted++;
+        if (new File(file.getPath() + "-journal").delete()) filesDeleted++;
+        if (new File(file.getPath() + "-shm").delete()) filesDeleted++;
+        if (new File(file.getPath() + "-wal").delete()) filesDeleted++;
+
+        File dir = file.getParentFile();
+        if (dir != null) {
+            final String prefix = file.getName() + "-mj";
+            final FileFilter filter = candidate -> candidate.getName().startsWith(prefix);
+            final File[] files = dir.listFiles(filter);
+            if (files != null) {
+                for (File masterJournal : files) {
+                    if (masterJournal.delete()) filesDeleted++;
+                }
+            }
+        }
+        return filesDeleted;
+    }
 }

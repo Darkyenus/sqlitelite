@@ -95,9 +95,7 @@ public final class SQLiteConnection implements CancellationSignal.OnCancelListen
 
     SQLiteConnection(SQLiteDatabase db, SQLiteDatabaseConfiguration configuration) {
         this.db = db;
-        mConnectionPtr = nativeOpen(configuration.path,
-                configuration.openFlags,
-                configuration.label);
+        mConnectionPtr = nativeOpen(configuration.path, configuration.openFlags);
         boolean ok = false;
         try {
             boolean readOnly = (configuration.openFlags & SQLiteDatabase.OPEN_READONLY) != 0;
