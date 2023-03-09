@@ -117,9 +117,9 @@ public class DatabaseBenchmarkTest {
         System.out.printf("%10s: %10.2f transactions/second%n", "Requery", requery);
         System.out.printf("%10s: %10.2f transactions/second%n", "Light", light);
         /*
-            Android:    3346.13 transactions/second
-            Requery:    8771.93 transactions/second
-              Light:   40679.90 transactions/second
+            Android:    3346.21 transactions/second
+            Requery:    8797.85 transactions/second
+              Light:   40389.15 transactions/second
          */
     }
 
@@ -249,9 +249,9 @@ public class DatabaseBenchmarkTest {
         System.out.printf("%10s: %10.2f reads/second%n", "Requery", requery);
         System.out.printf("%10s: %10.2f reads/second%n", "Light", light);
         /*
-            Android:       0.46 reads/second
-            Requery:       0.50 reads/second
-              Light:       2.30 reads/second
+            Android:       0.47 reads/second
+            Requery:       0.51 reads/second
+              Light:       2.34 reads/second
          */
     }
 
@@ -381,9 +381,9 @@ public class DatabaseBenchmarkTest {
         System.out.printf("%10s: %10.2f reads/second%n", "Requery", requery);
         System.out.printf("%10s: %10.2f reads/second%n", "Light", light);
         /*
-            Android:       2.00 reads/second
+            Android:       2.01 reads/second
             Requery:       0.99 reads/second
-              Light:       3.11 reads/second
+              Light:       3.05 reads/second
          */
     }
 

@@ -32,7 +32,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class CursorWindowTest {
     static {
-        System.loadLibrary("sqlite3x");
+        System.loadLibrary("sqlite3l");
     }
     public boolean isPerformanceOnly() {
         return false;

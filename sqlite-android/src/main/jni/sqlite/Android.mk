@@ -62,7 +62,7 @@ LOCAL_SRC_FILES += sqlite3ex.c
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
-LOCAL_MODULE:= libsqlite3x
+LOCAL_MODULE:= libsqlite3l
 LOCAL_LDLIBS += -ldl -llog -latomic
 
 include $(BUILD_SHARED_LIBRARY)

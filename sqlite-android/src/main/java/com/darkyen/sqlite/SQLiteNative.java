@@ -4,7 +4,7 @@ public final class SQLiteNative {
     private SQLiteNative() {}
 
     static {
-        System.loadLibrary("sqlite3x");
+        System.loadLibrary("sqlite3l");
     }
 
     public static native long nativeOpen(String path, int openFlags);

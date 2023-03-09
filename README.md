@@ -89,10 +89,10 @@ using `packagingOptions`:
 ```gradle
 android {
     packagingOptions {
-        exclude 'lib/armeabi-v7a/libsqlite3x.so'
-        exclude 'lib/arm64-v8a/libsqlite3x.so'
-        exclude 'lib/x86/libsqlite3x.so'
-        exclude 'lib/x86_64/libsqlite3x.so'
+        exclude 'lib/armeabi-v7a/libsqlite3l.so'
+        exclude 'lib/arm64-v8a/libsqlite3l.so'
+        exclude 'lib/x86/libsqlite3l.so'
+        exclude 'lib/x86_64/libsqlite3l.so'
     }
 }
 ```
