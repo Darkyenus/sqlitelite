@@ -54,8 +54,7 @@ endif
 LOCAL_SRC_FILES:= \
 	android_database_SQLiteCommon.cpp \
 	SQLiteNative.cpp \
-	JNIHelp.cpp \
-	JNIString.cpp
+	JNIHelp.cpp
 
 LOCAL_SRC_FILES += sqlite3ex.c
 

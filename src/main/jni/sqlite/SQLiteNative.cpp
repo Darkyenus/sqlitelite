@@ -53,8 +53,6 @@ static const int BUSY_TIMEOUT_MS = 2500;
 // a long time.
 static const int SOFT_HEAP_LIMIT = 8 * 1024 * 1024;
 
-static JavaVM *gpJavaVM = 0;
-
 // Called each time a message is logged.
 static void sqliteLogCallback(void* data, int iErrCode, const char* zMsg) {
     bool verboseLog = !!data;
@@ -574,7 +572,6 @@ static JNINativeMethod sMethods[] =
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
   JNIEnv *env = 0;
 
-  android::gpJavaVM = vm;
   vm->GetEnv((void**)&env, JNI_VERSION_1_4);
 
   jniRegisterNativeMethods(env,
