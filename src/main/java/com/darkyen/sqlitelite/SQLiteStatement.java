@@ -1,13 +1,13 @@
-package com.darkyen.sqlite;
+package com.darkyen.sqlitelite;
 
 import android.database.sqlite.SQLiteException;
 import org.jetbrains.annotations.Nullable;
 
-import static com.darkyen.sqlite.SQLiteNative.nativeBindBlob;
-import static com.darkyen.sqlite.SQLiteNative.nativeBindDouble;
-import static com.darkyen.sqlite.SQLiteNative.nativeBindLong;
-import static com.darkyen.sqlite.SQLiteNative.nativeBindNull;
-import static com.darkyen.sqlite.SQLiteNative.nativeBindString;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeBindBlob;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeBindDouble;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeBindLong;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeBindNull;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeBindString;
 
 public final class SQLiteStatement implements AutoCloseable {
     private final SQLiteConnection connection;

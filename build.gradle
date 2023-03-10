@@ -1,11 +1,18 @@
+import java.util.regex.Pattern
 
 plugins {
-    id 'de.undercouch.download' version '5.3.0'
+    id 'de.undercouch.download' version '5.3.1'
     id 'com.android.library' version '7.3.1'
     id 'maven-publish'
 }
 
-group "com.darkyen.sqlite"
+String SQLITE_SOURCE_URL = "https://www.sqlite.org/2023/sqlite-amalgamation-3410000.zip"
+String SQLITE_VERSION = "3.41.0"
+
+String LIB_GROUP = "com.darkyen"
+String LIB_NAME = "sqlitelite"
+String LIB_VERSION = "${SQLITE_VERSION}.0"
+
 
 android {
     compileSdk 33
@@ -14,8 +21,8 @@ android {
 
     defaultConfig {
         minSdkVersion 21
-        versionName "3.41.0.0"
-        namespace "com.darkyen.sqlite"
+        versionName = LIB_VERSION
+        namespace = LIB_GROUP+"."+LIB_NAME
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         consumerProguardFiles 'proguard-rules.pro'
         ndk {
@@ -55,6 +62,22 @@ android {
     }
 }
 
+group LIB_GROUP
+version LIB_VERSION
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = LIB_GROUP
+                artifactId = LIB_NAME
+                version = LIB_VERSION
+            }
+        }
+    }
+}
+
 repositories {
     mavenCentral()
     google()
@@ -75,15 +98,23 @@ dependencies {
     androidTestUtil 'androidx.test:orchestrator:1.4.2'
 }
 
+String SQLITE_ZIP_NAME
+{
+    def matcher = Pattern.compile(".*/(.+)\\.zip").matcher(SQLITE_SOURCE_URL)
+    matcher.find()
+    SQLITE_ZIP_NAME = matcher.group(1)
+}
+
 tasks.register('downloadSqlite', Download) {
-    src "https://www.sqlite.org/2023/sqlite-amalgamation-3410000.zip"
-    dest 'src/main/jni/sqlite.zip'
+    src SQLITE_SOURCE_URL
+    dest "src/main/jni/${SQLITE_ZIP_NAME}.zip"
+    overwrite false
 }
 
 tasks.register('installSqlite', Copy) {
     dependsOn downloadSqlite
     from zipTree(downloadSqlite.dest).matching {
-        include '*/sqlite3.*'
+        include "*/${SQLITE_ZIP_NAME}.*"
         eachFile { it.setPath(it.getName()) }
     }
     into 'src/main/jni/sqlite'

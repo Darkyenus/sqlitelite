@@ -602,7 +602,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
   vm->GetEnv((void**)&env, JNI_VERSION_1_4);
 
   jniRegisterNativeMethods(env,
-      "com/darkyen/sqlite/SQLiteNative",
+      "com/darkyen/sqlitelite/SQLiteNative",
       android::sMethods, NELEM(android::sMethods)
   );
 

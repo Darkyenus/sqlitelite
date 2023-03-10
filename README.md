@@ -1,5 +1,7 @@
 # Android SQLite-lite
 
+[![](https://jitpack.io/v/Darkyenus/sqlitelite.svg)](https://jitpack.io/#Darkyenus/sqlitelite)
+
 This library bundles a custom build of SQLite native library with custom Java API, which is lighter and faster than built-in Android SQLite APIs.
 
 The library started as a fork of [sqlite-android from Requery](https://github.com/requery/sqlite-android), which I recommend if you need the standard Android API.
@@ -30,14 +32,14 @@ Each transaction writes 10 rows of two LONGs each
      Light:   40171.91 transactions/second
 ```
 
-The benchmark code is [here](src/androidTest/java/com/darkyen/sqlite/DatabaseBenchmarkTest.java).
+The benchmark code is [here](src/androidTest/java/com/darkyen/sqlitelite/DatabaseBenchmarkTest.java).
 
 The benchmarks are constructed so that they measure performance of the bindings, rather than of SQLite itself, which fits some workloads better than others.
 Workloads that consist of many repeated small queries will benefit much more than those that perform only a few complex ones. There shouldn't be any workload that results in a slowdown compared to vanilla Android or Requery, but I will be happy to be proven otherwise.
 
 ## Usage
 
-Install from [jitpack](TODO).
+Install from [jitpack](https://jitpack.io/#Darkyenus/sqlitelite).
 
 There are only three classes of the API:
 - `SQLiteDelegate`

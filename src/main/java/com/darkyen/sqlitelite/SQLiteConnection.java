@@ -1,4 +1,4 @@
-package com.darkyen.sqlite;
+package com.darkyen.sqlitelite;
 
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
@@ -9,11 +9,11 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.util.ArrayList;
 
-import static com.darkyen.sqlite.SQLiteNative.nativeClose;
-import static com.darkyen.sqlite.SQLiteNative.nativeExecutePragma;
-import static com.darkyen.sqlite.SQLiteNative.nativeOpen;
-import static com.darkyen.sqlite.SQLiteNative.nativePrepareStatement;
-import static com.darkyen.sqlite.SQLiteNative.nativeReleaseMemory;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeClose;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeExecutePragma;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeOpen;
+import static com.darkyen.sqlitelite.SQLiteNative.nativePrepareStatement;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeReleaseMemory;
 
 public class SQLiteConnection implements AutoCloseable {
     private long connectionPtr;

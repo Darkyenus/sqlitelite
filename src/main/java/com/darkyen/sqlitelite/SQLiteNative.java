@@ -1,4 +1,4 @@
-package com.darkyen.sqlite;
+package com.darkyen.sqlitelite;
 
 final class SQLiteNative {
     private SQLiteNative() {}

@@ -1,4 +1,4 @@
-package com.darkyen.sqlite;
+package com.darkyen.sqlitelite;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;

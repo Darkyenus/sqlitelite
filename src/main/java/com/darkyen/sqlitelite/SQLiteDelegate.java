@@ -1,4 +1,4 @@
-package com.darkyen.sqlite;
+package com.darkyen.sqlitelite;
 
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
@@ -7,9 +7,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 
-import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_CREATE;
-import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_NOFOLLOW;
-import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_READWRITE;
+import static com.darkyen.sqlitelite.SQLiteConnection.SQLITE_OPEN_CREATE;
+import static com.darkyen.sqlitelite.SQLiteConnection.SQLITE_OPEN_NOFOLLOW;
+import static com.darkyen.sqlitelite.SQLiteConnection.SQLITE_OPEN_READWRITE;
 
 /**
  * Serves as a base for

@@ -1,4 +1,4 @@
-package com.darkyen.sqlite;
+package com.darkyen.sqlitelite;
 
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -101,7 +101,7 @@ public class DatabaseBenchmarkTest {
             mDatabaseLight.command("DROP TABLE Benchmark");
         }, (cycle) -> {
             mDatabaseLight.beginTransactionExclusive();
-            try (com.darkyen.sqlite.SQLiteStatement statement = mDatabaseLight.statement("INSERT INTO Benchmark (Cycle, Entry) VALUES (?, ?)")) {
+            try (com.darkyen.sqlitelite.SQLiteStatement statement = mDatabaseLight.statement("INSERT INTO Benchmark (Cycle, Entry) VALUES (?, ?)")) {
                 for (int i = 0; i < 10; i++) {
                     statement.bind(1, cycle);
                     statement.bind(2, i);
@@ -212,7 +212,7 @@ public class DatabaseBenchmarkTest {
         System.out.println("BENCHMARK PROGRESS LIGHT BEGIN");
         mDatabaseLight.command("CREATE TABLE Benchmark (Entry1, Entry2, Entry3)");
         mDatabaseLight.beginTransactionExclusive();
-        try (com.darkyen.sqlite.SQLiteStatement statement = mDatabaseLight.statement("INSERT INTO Benchmark (Entry1, Entry2, Entry3) VALUES (?, ?, ?)")) {
+        try (com.darkyen.sqlitelite.SQLiteStatement statement = mDatabaseLight.statement("INSERT INTO Benchmark (Entry1, Entry2, Entry3) VALUES (?, ?, ?)")) {
             for (int i = 0; i < entries; i++) {
                 statement.bind(1, i);
                 statement.bind(2, "RESOLUTION"+i);
@@ -224,7 +224,7 @@ public class DatabaseBenchmarkTest {
             mDatabaseLight.endTransaction();
         }
         final double light = measureThroughput(roundCycles, () -> {}, () -> {}, (cycle) -> {
-            try (com.darkyen.sqlite.SQLiteStatement cursor = mDatabaseLight.statement("SELECT Entry1, Entry2, Entry3 FROM Benchmark ORDER BY ROWID")) {
+            try (com.darkyen.sqlitelite.SQLiteStatement cursor = mDatabaseLight.statement("SELECT Entry1, Entry2, Entry3 FROM Benchmark ORDER BY ROWID")) {
                 int i = 0;
                 while (cursor.cursorNextRow()) {
                     final long entry1 = cursor.cursorGetLong(0);
@@ -340,7 +340,7 @@ public class DatabaseBenchmarkTest {
 
         mDatabaseLight.command("CREATE TABLE Benchmark (Entry1, Entry2, Entry3)");
         mDatabaseLight.beginTransactionExclusive();
-        try (com.darkyen.sqlite.SQLiteStatement statement = mDatabaseLight.statement("INSERT INTO Benchmark (Entry1, Entry2, Entry3) VALUES (?, ?, ?)")) {
+        try (com.darkyen.sqlitelite.SQLiteStatement statement = mDatabaseLight.statement("INSERT INTO Benchmark (Entry1, Entry2, Entry3) VALUES (?, ?, ?)")) {
             for (int i = 0; i < entries; i++) {
                 statement.bind(1, i);
                 statement.bind(2, "RESOLUTION"+i);
@@ -352,7 +352,7 @@ public class DatabaseBenchmarkTest {
             mDatabaseLight.endTransaction();
         }
         final double light = measureThroughput(roundCycles, () -> {}, () -> {}, (cycle) -> {
-            try (com.darkyen.sqlite.SQLiteStatement cursor = mDatabaseLight.statement("SELECT Entry1, Entry2, Entry3 FROM Benchmark ORDER BY ROWID")) {
+            try (com.darkyen.sqlitelite.SQLiteStatement cursor = mDatabaseLight.statement("SELECT Entry1, Entry2, Entry3 FROM Benchmark ORDER BY ROWID")) {
                 int i = 0;
                 while (cursor.cursorNextRow()) {
                     final long entry1 = cursor.cursorGetLong(0);
