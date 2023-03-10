@@ -1,90 +1,71 @@
-# Android SQLite support library
+# Android SQLite-lite
 
-![Build Status](https://github.com/requery/sqlite-android/actions/workflows/ci.yml/badge.svg)
-[![Download](https://jitpack.io/v/requery/sqlite-android.svg)](https://jitpack.io/#requery/sqlite-android)
+This library bundles a custom build of SQLite native library with custom Java API, which is lighter and faster than built-in Android SQLite APIs.
 
-This is an Android specific distribution of the latest versions of SQLite. It contains the latest
-SQLite version and the Android specific database APIs derived from AOSP packaged as an AAR
-library distributed on jitpack.
+The library started as a fork of [sqlite-android from Requery](https://github.com/requery/sqlite-android), which I recommend if you need the standard Android API.
+However, the whole Java API has been rewritten and most of the native binding code have been changed since.
 
-Why?
-----
+## Benefits and considerations
 
-- **Consistent**
-- **Faster**
-- **Up-to-date**
+Primary goal is to use a consistent and up-to-date SQLite on each Android version, so there is  need to cater to the lowest supported version. This makes compatibility problems less likely and reduces the work needed to develop and test your application.
 
-Even the latest version of Android is several versions behind the latest version of SQLite.
-Theses versions do not have the bug fixes, performance improvements, or new features present in
-current versions of SQLite. This problem is worse the older the version of the OS the device has.
-Using this library you can keep up to date with the latest versions of SQLite and provide a
-consistent version across OS versions and devices.
+It is not a goal of this project to be interoperable with existing Android libraries that depend on the default or support SQLite API. Use [sqlite-android from Requery](https://github.com/requery/sqlite-android) if that is something you need. This makes it possible to reduce the API surface, simplifying the implementation and removing constraints which are rarely useful and only slow down and bloat the program in most cases.
 
-Use new SQLite features:
+The combination of updated SQLite with an API which is much closer to the API of SQLite (but not necessarily low level), it is possible to achieve much higher performance in workloads which suffer from API overhead. Benchmark results speak for themselves:
 
-- **[JSON1 extension](https://www.sqlite.org/json1.html)**
-- **[Common Table expressions](https://www.sqlite.org/lang_with.html)**
-- **[Indexes on expressions](https://www.sqlite.org/expridx.html)**
-- **[Full Text Search 5](https://www.sqlite.org/fts5.html)**
-- **[Generated Columns](https://www.sqlite.org/gencol.html)**
-- **[DROP COLUMN support](https://www.sqlite.org/lang_altertable.html#altertabdropcol)**
+```
+Read 100 000 rows with a single cursor (each entry contains LONG, short String and 800 byte BLOB)   
+  Android:       0.47 reads/second
+  Requery:       0.49 reads/second
+    Light:       2.32 reads/second
 
-Usage
------
+Read 100 000 rows with a single cursor (each entry contains LONG, short String and 3 byte BLOB)
+  Android:       1.96 reads/second
+  Requery:       0.95 reads/second (there is a performance problem (by design) in Requery's Cursor implementation, that causes O(n^2) behavior which appears when iterating through large Cursor results)
+    Light:       3.03 reads/second
 
-Follow the guidelines from [jitpack.io](https://jitpack.io) to add the JitPack repository to your build file if you have not.
-
-Typically, this means an edit to your `build.gradle` file to add a new `repository` definition in the `allprojects` block, like this:
-
-```gradle
-	allprojects {
-		repositories {
-			...
-			maven { url 'https://jitpack.io' }
-		}
-	}
+Each transaction writes 10 rows of two LONGs each  
+   Android:    3295.69 transactions/second
+   Requery:    5607.22 transactions/second
+     Light:   40171.91 transactions/second
 ```
 
-Then add the sqlite-android artifact from this repository as a dependency:
+The benchmark code is [here](src/androidTest/java/com/darkyen/sqlite/DatabaseBenchmarkTest.java).
 
-```gradle
-dependencies {
-    implementation 'com.github.requery:sqlite-android:3.40.1'
-}
-```
-Then change usages of `android.database.sqlite.SQLiteDatabase` to
-`io.requery.android.database.sqlite.SQLiteDatabase`, similarly extend
-`io.requery.android.database.sqlite.SQLiteOpenHelper` instead of
-`android.database.sqlite.SQLiteOpenHelper`. Note similar changes maybe required for classes that
-depended on `android.database.sqlite.SQLiteDatabase` equivalent APIs are provided in the
-`io.requery.android.database.sqlite` package.
+The benchmarks are constructed so that they measure performance of the bindings, rather than of SQLite itself, which fits some workloads better than others.
+Workloads that consist of many repeated small queries will benefit much more than those that perform only a few complex ones. There shouldn't be any workload that results in a slowdown compared to vanilla Android or Requery, but I will be happy to be proven otherwise.
 
-If you expose `Cursor` instances across processes you should wrap the returned cursors in a
-[CrossProcessCursorWrapper](http://developer.android.com/reference/android/database/CrossProcessCursorWrapper.html)
-for performance reasons the cursors are not cross process by default.
+## Usage
 
-### Support library compatibility
+Install from [jitpack](TODO).
 
-The library implements the SupportSQLite interfaces provided by the support library. Use
-`RequerySQLiteOpenHelperFactory` to obtain an implementation of `(Support)SQLiteOpenHelper` based
-on a `SupportSQLiteOpenHelper.Configuration` and `SupportSQLiteOpenHelper.Callback`.
+There are only three classes of the API:
+- `SQLiteDelegate`
+  - Contains DB settings and versioning callbacks, very similar to the standard `SQLiteOpenHelper` class
+- `SQLiteConnection`
+  - This wraps the `sqlite3*` of the native API. Android SQLite API manages these as a part of a connection pool, then further wraps them in sessions that handle transactions and their nesting. This library has no connection pools and no transaction nesting. You can still create multiple connections to the same database and even put them into a pool if you want. One connection can be used by only one thread at the same time, but is not bound to the thread (unlike Android's API which uses thread locals).
+  - You can run one-off SQL statements here (`CREATE`s, `DROP`s, `PRAGMA`s, etc.) and begin/end transactions
+  - You can create `SQLiteStatement` (=prepared statement) from here - those are used for all data manipulation tasks (`INSERT`, `SELECT`, `UPDATE`, `DELETE`, etc.)
+  - Don't forget to close the connection when you are done with it (or don't, if you plan to keep using it until your app dies)
+- `SQLiteStatement`
+  - Corresponds to SQLite's `sqlite3_stmt*` and Android's `SQLiteStatement` + `SQLiteQuery` + `Cursor`
+  - You can bind query parameters here, run one-time inserts/updates/queries and use it as a cursor
+  - While cursor is being iterated, it is not possible to change bindings and use other execute methods
+  - If you keep the statement around with the database connection, you don't need to close it - it will get closed automatically when you close the database. However, if you only need it for one-time command, close it (try-with-resources works well here). Otherwise, you will leak both Java and native memory.
 
-This also allows you to use sqlite-android with libraries like Room by passing an instance
-of `RequerySQLiteOpenHelperFactory` to them.
+The library does not try to catch any memory leaks. But it is not hard to keep track of everything, there are only two classes with a lifetime and if you get hold of any, it is your job to close them when you no longer need them. Not closing them will not lead to data loss, just to a memory leak.
 
+Closing is idempotent - closing something multiple times is a no-op.
 
-CPU Architectures
------------------
+The API design is very close to the API design of SQLite itself. Familiarity with it will help, but is not required to use this library.
 
-The native library is built for the following CPU architectures:
+It should not be possible to break anything through API misuse, because SQLite will catch it, report an error and that error will appear as an `SQLiteException`.
 
-- `armeabi-v7a` ~1.2 MB
-- `arm64-v8a` ~1.7 MB
-- `x86` ~1.7 MB
-- `x86_64` ~1.8 MB
+## CPU Architectures
 
-However you may not want to include all binaries in your apk. You can exclude certain variants by
-using `packagingOptions`:
+Whole AAR is about 1.5 MB. Each of the four built-in CPU architectures is around 750 kB.
+
+You can exclude certain architectures by using `packagingOptions`:
 
 ```gradle
 android {
@@ -97,60 +78,25 @@ android {
 }
 ```
 
-The size of the artifacts with only the armeabi-v7a binary is **~1.2 MB**. In general you can use
-armeabi-v7a on the majority of Android devices including Intel Atom which provides a native
-translation layer, however performance under the translation layer is worse than using the x86
-binary.
+Google Play may have additional requirements on which architectures must be present,
+but if you are publishing to Google Play, you can use [App Bundle distribution](https://developer.android.com/guide/app-bundle) which solves the problem optimally.
 
-Note that starting August 1, 2019, your apps published on Google Play will [need to support 64-bit architectures](https://developer.android.com/distribute/best-practices/develop/64-bit).
+## Requirements
 
-Requirements
-------------
+The min SDK level is API level 21 (Android 5.0 Lollipop). It might be possible to lower this further, I just didn't need it.
 
-The min SDK level is API level 14 (Ice Cream Sandwich).
-
-Versioning
-----------
+## Versioning
 
 The library is versioned after the version of SQLite it contains. For changes specific to just the
-wrapper API a revision number is added e.g. 3.40.1-X, where X is the revision number.
+wrapper API a revision number is added e.g. 3.40.1.X, where X is the revision number.
 
-Acknowledgements
-----------------
-This project is based on the AOSP code and the [Android SQLite bindings](https://www.sqlite.org/android/doc/trunk/www/index.wiki)
-No official distributions are made from the Android SQLite bindings it and it has not been updated
-in a while, this project starts there and makes significant changes:
+## Acknowledgements
 
-Changes
--------
+The project is based on [sqlite-android from Requery](https://github.com/requery/sqlite-android), which in turn is based on the AOSP code and the [Android SQLite bindings](https://www.sqlite.org/android/doc/trunk/www/index.wiki).
 
-- **Fast read performance:** The original SQLite bindings filled the CursorWindow using it's
-  Java methods from native C++. This was because there is no access to the native CursorWindow
-  native API from the NDK. Unfortunately this slowed read performance significantly (roughly 2x
-  worse vs the android database API) because of extra JNI roundtrips. This has been rewritten
-  without the JNI to Java calls (so more like the original AOSP code) and also using a local memory
-  CursorWindow.
-- Reuse of android.database.sqlite.*, the original SQLite bindings replicated the entire
-  android.database.sqlite API structure including exceptions & interfaces. This project does not
-  do that, instead it reuses the original classes/interfaces when possible in order to simplify
-  migration and/or use with existing code.
-- Unit tests added
-- Compile with [clang](http://clang.llvm.org/) toolchain
-- Compile with FTS3, FTS4, & JSON1 extension
-- Migrate to gradle build
-- buildscript dynamically fetches and builds the latest sqlite source from sqlite.org
-- Added consumer proguard rules
-- Use androidx-core version of `CancellationSignal`
-- Fix bug in `SQLiteOpenHelper.getDatabaseLocked()` wrong path to `openOrCreateDatabase`
-- Fix removed members in AbstractWindowCursor
-- Made the AOSP code (mostly) warning free but still mergable from source
-- Deprecated classes/methods removed
-- Loadable extension support
-- STL dependency removed
+## License
 
-License
--------
-
+    Copyright (C) 2023 Jan Polák
     Copyright (C) 2017-2022 requery.io
     Copyright (C) 2005-2012 The Android Open Source Project
 

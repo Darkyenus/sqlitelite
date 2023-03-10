@@ -11,6 +11,9 @@ import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_CREATE;
 import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_NOFOLLOW;
 import static com.darkyen.sqlite.SQLiteConnection.SQLITE_OPEN_READWRITE;
 
+/**
+ * Serves as a base for
+ */
 public abstract class SQLiteDelegate {
     private static final String TAG = "SQLiteDelegate";
 

@@ -171,7 +171,7 @@ public class DatabaseBenchmarkTest {
 
 
         final double requery;
-        if (false) {
+        if (true) {
             mDatabaseRequery.execSQL("CREATE TABLE Benchmark (Entry1, Entry2, Entry3)");
             mDatabaseRequery.beginTransaction();
             try {
@@ -301,7 +301,7 @@ public class DatabaseBenchmarkTest {
 
 
         final double requery;
-        if (false) {// Currently crashes in CursorWindow::clear(), for some reason
+        if (true) {// Currently crashes in CursorWindow::clear(), for some reason
             mDatabaseRequery.execSQL("CREATE TABLE Benchmark (Entry1, Entry2, Entry3)");
             mDatabaseRequery.beginTransaction();
             try {
