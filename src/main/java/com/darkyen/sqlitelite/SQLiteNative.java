@@ -36,10 +36,9 @@ final class SQLiteNative {
     static native double nativeCursorGetDouble(long connectionPtr, long statementPtr, int index);
     static native String nativeCursorGetString(long connectionPtr, long statementPtr, int index);
     static native byte[] nativeCursorGetBlob(long connectionPtr, long statementPtr, int index);
-    static native void nativeResetStatement(long connectionPtr, long statementPtr);
-    static native void nativeClearBindings(long connectionPtr, long statementPtr);
+    static native void nativeResetStatement(long statementPtr);
+    static native void nativeClearBindings(long statementPtr);
 
-    static native void nativeResetStatementAndClearBindings(long connectionPtr, long statementPtr);
     static native String nativeExecutePragma(long connectionPtr, String sql);
     static native void nativeInterrupt(long connectionPtr);
     static native int nativeReleaseMemory();

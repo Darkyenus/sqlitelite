@@ -253,20 +253,6 @@ static void nativeBindBlob(JNIEnv* env, jclass clazz, jlong connectionPtr,
     }
 }
 
-static void nativeResetStatementAndClearBindings(JNIEnv* env, jclass clazz, jlong connectionPtr,
-        jlong statementPtr) {
-    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
-    sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
-
-    int err = sqlite3_reset(statement);
-    if (err == SQLITE_OK) {
-        err = sqlite3_clear_bindings(statement);
-    }
-    if (err != SQLITE_OK) {
-        throw_sqlite3_exception(env, dbConnection, NULL);
-    }
-}
-
 static jstring nativeExecutePragma(JNIEnv* env, jclass clazz, jlong connectionPtr, jstring sqlString) {
     sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
     sqlite3_stmt* statement = prepareStatement(env, dbConnection, sqlString);
@@ -520,23 +506,15 @@ static jbyteArray nativeCursorGetBlob(JNIEnv* env, jclass clazz, jlong connectio
     return result;
 }
 
-static void nativeResetStatement(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
-    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+static void nativeResetStatement(JNIEnv* env, jclass clazz, jlong statementPtr) {
     sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
 
-    int err = sqlite3_reset(statement);
-    if (err != SQLITE_OK) {
-        throw_sqlite3_exception(env, dbConnection, NULL);
-    }
+    sqlite3_reset(statement);// No need to check error, it only repeats errors from sqlite3_step
 }
-static void nativeClearBindings(JNIEnv* env, jclass clazz, jlong connectionPtr, jlong statementPtr) {
-    sqlite3* dbConnection = reinterpret_cast<sqlite3*>(connectionPtr);
+static void nativeClearBindings(JNIEnv* env, jclass clazz, jlong statementPtr) {
     sqlite3_stmt* statement = reinterpret_cast<sqlite3_stmt*>(statementPtr);
 
-    int err = sqlite3_clear_bindings(statement);
-    if (err != SQLITE_OK) {
-        throw_sqlite3_exception(env, dbConnection, NULL);
-    }
+    sqlite3_clear_bindings(statement);// No need to check error, can't fail
 }
 
 static void nativeInterrupt(JNIEnv* env, jobject clazz, jlong connectionPtr) {
@@ -565,8 +543,6 @@ static JNINativeMethod sMethods[] =
             (void*)nativeBindString },
     { "nativeBindBlob", "(JJI[B)V",
             (void*)nativeBindBlob },
-    { "nativeResetStatementAndClearBindings", "(JJ)V",
-            (void*)nativeResetStatementAndClearBindings },
     { "nativeExecutePragma", "(JLjava/lang/String;)Ljava/lang/String;",
             (void*)nativeExecutePragma },
 
@@ -584,8 +560,8 @@ static JNINativeMethod sMethods[] =
     { "nativeCursorGetDouble", "(JJI)D", (void*) nativeCursorGetDouble },
     { "nativeCursorGetString", "(JJI)Ljava/lang/String;", (void*) nativeCursorGetString },
     { "nativeCursorGetBlob", "(JJI)[B", (void*) nativeCursorGetBlob },
-    { "nativeResetStatement", "(JJ)V", (void*) nativeResetStatement },
-    { "nativeClearBindings", "(JJ)V", (void*) nativeClearBindings },
+    { "nativeResetStatement", "(J)V", (void*) nativeResetStatement },
+    { "nativeClearBindings", "(J)V", (void*) nativeClearBindings },
 
     { "nativeInterrupt", "(J)V",
             (void*)nativeInterrupt },

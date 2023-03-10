@@ -16,6 +16,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
@@ -274,8 +275,40 @@ public class DatabaseUsageTest {
 
                 assertFalse("End", s.cursorNextRow());// End
                 assertFalse("End again", s.cursorNextRow());
-                s.cursorReset(repeat == 0);
+                s.cursorReset();
+                if (repeat == 0) {
+                    s.clearBindings();
+                }
             }
+        }
+    }
+
+    @Test
+    public void interruptTest() {
+        mDatabase.command("CREATE TABLE Test (Col)");
+        try (SQLiteStatement s = mDatabase.statement("INSERT INTO Test (Col) VALUES (?)")) {
+            s.bind(1, "value");
+            s.executeForRowID();
+            s.executeForRowID();
+            s.executeForRowID();
+            s.executeForRowID();
+            s.executeForRowID();
+        }
+
+        try (SQLiteStatement s = mDatabase.statement("SELECT Col FROM Test")) {
+            assertTrue(s.cursorNextRow());
+            assertEquals("value", s.cursorGetString(0));
+            mDatabase.interrupt();
+
+            // cursorGet does not actually check for interrupts
+            //assertThrows(SQLiteInterruptedException.class, () -> { s.cursorGetString(0); });
+            assertThrows(SQLiteInterruptedException.class, s::cursorNextRow);
+
+            s.cursorReset();
+            mDatabase.interrupt();
+
+            assertTrue(s.cursorNextRow());
+            assertEquals("value", s.cursorGetString(0));
         }
     }
 }

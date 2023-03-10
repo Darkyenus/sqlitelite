@@ -5,9 +5,11 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
 import org.intellij.lang.annotations.Language;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.darkyen.sqlitelite.SQLiteNative.nativeClose;
 import static com.darkyen.sqlitelite.SQLiteNative.nativeExecutePragma;
@@ -15,8 +17,16 @@ import static com.darkyen.sqlitelite.SQLiteNative.nativeOpen;
 import static com.darkyen.sqlitelite.SQLiteNative.nativePrepareStatement;
 import static com.darkyen.sqlitelite.SQLiteNative.nativeReleaseMemory;
 
+/**
+ * A single connection to a database.
+ * Not thread safe, but can be used from multiple
+ * threads as long as the usage is mutually exclusive.
+ * <p>
+ * It is recommended to reuse connections when accessing the database multiple times.
+ * There is no internal connection pooling that would do that for you.
+ */
 public class SQLiteConnection implements AutoCloseable {
-    private long connectionPtr;
+    private final AtomicLong connectionPtr;
 
     private boolean inTransaction = false;
     private boolean transactionSuccessful = false;
@@ -32,25 +42,36 @@ public class SQLiteConnection implements AutoCloseable {
     private final ArrayList<SQLiteStatement> managedStatements = new ArrayList<>();
 
     private SQLiteConnection(long connectionPtr) {
-        this.connectionPtr = connectionPtr;
+        this.connectionPtr = new AtomicLong(connectionPtr);
     }
 
     long connectionPtr() {
-        final long ptr = connectionPtr;
+        final long ptr = connectionPtr.get();
         if (ptr == 0) throw new IllegalStateException("Connection already closed");
         return ptr;
     }
 
     /**
-     * Begins a transaction in EXCLUSIVE mode.
+     * Begins a transaction in DEFERRED mode.
+     * Useful only when not using WAL journal mode (which is default).
+     *
+     * @see #beginTransactionImmediate()
+     * @see <a href="https://www.sqlite.org/lang_transaction.html">SQLite documentation</a>
+     */
+    public void beginTransactionExclusive() {
+        beginTransaction(STATEMENT_BEGIN_EXCLUSIVE_TRANSACTION);
+    }
+
+    /**
+     * Begins a transaction in IMMEDIATE mode.
+     * Useful for write transactions.
      * <p>
-     * Transactions can be nested.
-     * When the outer transaction is ended all of
-     * the work done in that transaction and all of the nested transactions will be committed or
-     * rolled back. The changes will be rolled back if any transaction is ended without being
-     * marked as clean (by calling setTransactionSuccessful). Otherwise they will be committed.
-     * </p>
-     * <p>Here is the standard idiom for transactions:
+     * Transactions cannot be nested.
+     * The changes will be rolled back if any transaction is ended without being
+     * marked as clean (by calling {@link #setTransactionSuccessful()}).
+     * Otherwise, they will be committed.
+     * <p>
+     * Here is the standard idiom for transactions:
      *
      * <pre>
      *   db.beginTransaction();
@@ -61,30 +82,8 @@ public class SQLiteConnection implements AutoCloseable {
      *     db.endTransaction();
      *   }
      * </pre>
-     */
-    public void beginTransactionExclusive() {
-        beginTransaction(STATEMENT_BEGIN_EXCLUSIVE_TRANSACTION);
-    }
-
-    /**
-     * Begins a transaction in IMMEDIATE mode. Transactions can be nested. When
-     * the outer transaction is ended all of the work done in that transaction
-     * and all of the nested transactions will be committed or rolled back. The
-     * changes will be rolled back if any transaction is ended without being
-     * marked as clean (by calling setTransactionSuccessful). Otherwise they
-     * will be committed.
-     * <p>
-     * Here is the standard idiom for transactions:
      *
-     * <pre>
-     *   db.beginTransactionNonExclusive();
-     *   try {
-     *     ...
-     *     db.setTransactionSuccessful();
-     *   } finally {
-     *     db.endTransaction();
-     *   }
-     * </pre>
+     * @see <a href="https://www.sqlite.org/lang_transaction.html">SQLite documentation</a>
      */
     public void beginTransactionImmediate() {
         beginTransaction(STATEMENT_BEGIN_IMMEDIATE_TRANSACTION);
@@ -92,6 +91,9 @@ public class SQLiteConnection implements AutoCloseable {
 
     /**
      * Begins a transaction in DEFERRED mode.
+     * Useful for consistent read transactions.
+     * @see #beginTransactionImmediate()
+     * @see <a href="https://www.sqlite.org/lang_transaction.html">SQLite documentation</a>
      */
     public void beginTransactionDeferred() {
         beginTransaction(STATEMENT_BEGIN_DEFERRED_TRANSACTION);
@@ -198,7 +200,7 @@ public class SQLiteConnection implements AutoCloseable {
         return statement;
     }
 
-    void close(@NotNull SQLiteStatement statement) {
+    void removeFromManaged(@NotNull SQLiteStatement statement) {
         final int managementIndex = statement.managementIndex;
         statement.managementIndex = -1;
 
@@ -223,21 +225,67 @@ public class SQLiteConnection implements AutoCloseable {
                         @Language("RoomSql"/*Should be just SQL, but that is not supported on community :( */)
                         String sql) {
         try (SQLiteStatement statement = unmanagedStatement(sql)) {
-            statement.execute();
+            statement.executeForNothing();
         }
     }
 
+    /**
+     * Perform a PRAGMA SQL command and return the result, if any.
+     */
+    public @Nullable String pragma(@NotNull @Language("RoomSql") String sql) {
+        return SQLiteNative.nativeExecutePragma(connectionPtr(), sql);
+    }
+
+    /**
+     * If there is a command/query running, interrupt it, which will cause it to throw
+     * {@link SQLiteInterruptedException}. Thread safe.
+     * @see <a href="https://www.sqlite.org/c3ref/interrupt.html">SQLite documentation for intricacies of the behavior</a>
+     */
+    public void interrupt() {
+        final long ptr = this.connectionPtr.get();
+        if (ptr != 0) {
+            SQLiteNative.nativeInterrupt(ptr);
+        }
+    }
+
+    /**
+     * Close the database connection.
+     * Calling any other methods on it afterwards will throw {@link IllegalStateException}.
+     * Calling this again after a successful close is a no-op.
+     *
+     * @throws SQLException on any error (typically happens when not all statements
+     *  are closed yet, but this closes the statements automatically,
+     *  so it should not happen at all)
+     */
     @Override
     public void close() throws SQLException {
-        final long connectionPtr = this.connectionPtr;
+        // Remove connectionPtr, so that no other method, especially interrupt() can use it
+        final long connectionPtr = this.connectionPtr.getAndSet(0);
         if (connectionPtr == 0) return;// Already closed
 
-        Throwable result = null;
-        for (int i = 0; i < statementCache.length; i++) {
-            final SQLiteStatement statement = statementCache[i];
-            if (statement != null) {
+        boolean returnConnection = true;
+        try {
+            Throwable result = null;
+            for (int i = 0; i < statementCache.length; i++) {
+                final SQLiteStatement statement = statementCache[i];
+                if (statement != null) {
+                    try {
+                        statement.close(connectionPtr);
+                    } catch (Throwable e) {
+                        if (result == null) {
+                            result = e;
+                        } else {
+                            result.addSuppressed(e);
+                        }
+                    }
+                    statementCache[i] = null;
+                }
+            }
+
+            for (final SQLiteStatement statement : managedStatements) {
+                statement.managementIndex = -1;// Don't bother removing yourself from the list
                 try {
-                    statement.close();
+                    statement.close(connectionPtr);
                 } catch (Throwable e) {
                     if (result == null) {
                         result = e;
@@ -245,35 +293,44 @@ public class SQLiteConnection implements AutoCloseable {
                         result.addSuppressed(e);
                     }
                 }
-                statementCache[i] = null;
             }
-        }
+            managedStatements.clear();
 
-        for (final SQLiteStatement statement : managedStatements) {
-            statement.managementIndex = -1;// Don't bother removing yourself from the list
             try {
-                statement.close();
-            } catch (Throwable e) {
-                if (result == null) {
-                    result = e;
-                } else {
-                    result.addSuppressed(e);
+                nativeClose(connectionPtr);
+            } catch (Throwable t) {
+                if (result != null) {
+                    t.addSuppressed(result);
                 }
+                throw t;
+            }
+            returnConnection = false;
+        } finally {
+            if (returnConnection) {
+                // Closing has failed, the database is not closed, return the pointer back so that it can be attempted again later
+                this.connectionPtr.set(connectionPtr);
             }
         }
-        managedStatements.clear();
-
-        try {
-            nativeClose(connectionPtr);
-        } catch (Throwable t) {
-            if (result != null) {
-                t.addSuppressed(result);
-            }
-            throw t;
-        }
-        this.connectionPtr = 0;// Clear after, because we don't want to lose ptr if everything is not closed yet
     }
 
+    /**
+     * Open a new database, without {@link SQLiteDelegate}. (Advanced API.)
+     * @param path passed to sqlite3_open_v2
+     * @param openFlags passed to sqlite3_open_v2
+     * @return the database connection
+     * @throws SQLiteException on any error
+     */
+    public static @NotNull SQLiteConnection open(@NotNull String path, int openFlags) throws SQLiteException {
+        long connectionPtr = nativeOpen(path, openFlags);
+        return new SQLiteConnection(connectionPtr);
+    }
+
+    /**
+     * Create a new database with delegate for settings.
+     * @param delegate that provides settings and version callbacks
+     * @return the database connection
+     * @throws SQLiteException on any error
+     */
     public static @NotNull SQLiteConnection open(SQLiteDelegate delegate) throws SQLiteException {
         final File file = delegate.file;
         long connectionPtr = nativeOpen(
@@ -288,12 +345,7 @@ public class SQLiteConnection implements AutoCloseable {
 
             boolean readOnly = (delegate.openFlags & SQLiteDatabase.OPEN_READONLY) != 0;
             if (!readOnly) {
-                nativeExecutePragma(connectionPtr, "PRAGMA foreign_keys=" + (delegate.foreignKeyConstraintsEnabled ? "1" : "0"));
-                if (file != null) {
-                    nativeExecutePragma(connectionPtr, "PRAGMA journal_mode=wal");
-                }
                 delegate.onConfigure(connection);
-
 
                 if (targetVersion > 0 && currentVersion != targetVersion) {
                     try {

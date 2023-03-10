@@ -86,7 +86,7 @@ public final class SQLiteStatement implements AutoCloseable {
     /** Remove all existing bindings. */
     public void clearBindings() {
         assertNormalState();
-        SQLiteNative.nativeClearBindings(connection.connectionPtr(), statementPtr());
+        SQLiteNative.nativeClearBindings(statementPtr());
     }
 
 
@@ -180,7 +180,7 @@ public final class SQLiteStatement implements AutoCloseable {
 
     /**
      * Execute this statement to get the next row of values.
-     * The row is valid until called again or until {@link #cursorReset(boolean)} is called.
+     * The row is valid until called again or until {@link #cursorReset()} is called.
      * Do not mix with {@link #executeForNothing()} and related methods.
      * @return true if there is another row, false if at the end
      * @throws SQLiteException on any error
@@ -205,49 +205,82 @@ public final class SQLiteStatement implements AutoCloseable {
     /**
      * Reset the cursor execution to be ready for another invocation.
      * See {@link #cursorNextRow()} for more info.
-     * @param clearBindings true to clear bindings, false to keep them
      */
-    public void cursorReset(boolean clearBindings) {
+    public void cursorReset() {
         if (state == STATE_NORMAL) throw new IllegalStateException("Not in cursor mode, nothing to reset");
         state = STATE_NORMAL;
-        if (clearBindings) {
-            SQLiteNative.nativeResetStatementAndClearBindings(connection.connectionPtr(), statementPtr());
-        } else {
-            SQLiteNative.nativeResetStatement(connection.connectionPtr(), statementPtr());
-        }
+        SQLiteNative.nativeResetStatement(statementPtr());
     }
 
+    /**
+     * Get boolean on the current row in specified column.
+     * True is a non-zero number, otherwise false.
+     * @param index starts at 0
+     */
     public boolean cursorGetBoolean(int index) {
         assertCursorRowState();
         return SQLiteNative.nativeCursorGetLong(connection.connectionPtr(), statementPtr(), index) != 0L;
     }
+    /**
+     * Get LONG on the current row in specified column.
+     * If the stored type is not LONG, it will be converted.
+     * NULL is returned as 0.
+     * @param index starts at 0
+     */
     public long cursorGetLong(int index) {
         assertCursorRowState();
         return SQLiteNative.nativeCursorGetLong(connection.connectionPtr(), statementPtr(), index);
     }
+    /**
+     * Get double on the current row in specified column.
+     * If the stored type is not double, it will be converted.
+     * NULL is returned as 0.0.
+     * @param index starts at 0
+     */
     public double cursorGetDouble(int index) {
         assertCursorRowState();
         return SQLiteNative.nativeCursorGetDouble(connection.connectionPtr(), statementPtr(), index);
     }
+    /**
+     * Get TEXT on the current row in specified column.
+     * If the stored type is not TEXT, it will be converted.
+     * NULL is returned as null.
+     * @param index starts at 0
+     */
     public @Nullable String cursorGetString(int index) {
         assertCursorRowState();
         return SQLiteNative.nativeCursorGetString(connection.connectionPtr(), statementPtr(), index);
     }
+    /**
+     * Get BLOB on the current row in specified column.
+     * If the stored type is not BLOB, it will be converted.
+     * NULL is returned as null.
+     * @param index starts at 0
+     */
     public @Nullable byte[] cursorGetBlob(int index) {
         assertCursorRowState();
         return SQLiteNative.nativeCursorGetBlob(connection.connectionPtr(), statementPtr(), index);
     }
 
-    @Override
-    public void close() throws SQLiteException {
+    void close(long connectionPtr) throws SQLiteException {
         final long ptr = statementPtr;
         if (ptr == 0) return;// Already deleted
-        SQLiteNative.nativeFinalizeStatement(connection.connectionPtr(), ptr);
+        SQLiteNative.nativeFinalizeStatement(connectionPtr, ptr);
         statementPtr = 0;
+    }
+
+    /**
+     * Close the statement, releasing its resources.
+     * Repeated calls are no-ops.
+     * @throws SQLiteException shouldn't happen
+     */
+    @Override
+    public void close() throws SQLiteException {
+        close(connection.connectionPtr());
 
         // It is managed, delete it from management tracking list
         if (managementIndex >= 0) {
-            connection.close(this);
+            connection.removeFromManaged(this);
         }
     }
 }

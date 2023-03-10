@@ -114,9 +114,12 @@ tasks.register('downloadSqlite', Download) {
 tasks.register('installSqlite', Copy) {
     dependsOn downloadSqlite
     from zipTree(downloadSqlite.dest).matching {
-        include "*/${SQLITE_ZIP_NAME}.*"
-        eachFile { it.setPath(it.getName()) }
+        include "*/sqlite3.*"
+        eachFile {
+            it.setPath(it.getName())
+        }
     }
+    includeEmptyDirs = false
     into 'src/main/jni/sqlite'
 }
 

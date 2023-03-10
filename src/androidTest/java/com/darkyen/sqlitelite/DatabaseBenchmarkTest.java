@@ -4,6 +4,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.Suppress;
 import io.requery.android.database.sqlite.SQLiteCursor;
 import org.junit.After;
 import org.junit.Assert;
@@ -17,6 +18,7 @@ import java.util.function.IntConsumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@Suppress
 @RunWith(AndroidJUnit4.class)
 public class DatabaseBenchmarkTest {
 
@@ -37,19 +39,19 @@ public class DatabaseBenchmarkTest {
         // We are not benchmarking SQLite but only the bindings
         mDatabaseAndroid.rawQuery("PRAGMA foreign_keys=0", null).close();
         mDatabaseRequery.rawQuery("PRAGMA foreign_keys=0", null);
-        mDatabaseLight.command("PRAGMA foreign_keys=0");
+        mDatabaseLight.pragma("PRAGMA foreign_keys=0");
 
         mDatabaseAndroid.rawQuery("PRAGMA journal_mode=OFF", null).close();
         mDatabaseRequery.rawQuery("PRAGMA journal_mode=OFF", null);
-        mDatabaseLight.command("PRAGMA journal_mode=OFF");
+        mDatabaseLight.pragma("PRAGMA journal_mode=OFF");
 
         mDatabaseAndroid.rawQuery("PRAGMA locking_mode=NORMAL", null).close();
         mDatabaseRequery.rawQuery("PRAGMA locking_mode=NORMAL", null);
-        mDatabaseLight.command("PRAGMA locking_mode=NORMAL");
+        mDatabaseLight.pragma("PRAGMA locking_mode=NORMAL");
 
         mDatabaseAndroid.rawQuery("PRAGMA synchronous=0", null).close();
         mDatabaseRequery.rawQuery("PRAGMA synchronous=0", null);
-        mDatabaseLight.command("PRAGMA synchronous=0");
+        mDatabaseLight.pragma("PRAGMA synchronous=0");
     }
 
     @Test

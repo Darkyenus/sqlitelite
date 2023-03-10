@@ -10,14 +10,18 @@ import java.io.File;
 import static com.darkyen.sqlitelite.SQLiteConnection.SQLITE_OPEN_CREATE;
 import static com.darkyen.sqlitelite.SQLiteConnection.SQLITE_OPEN_NOFOLLOW;
 import static com.darkyen.sqlitelite.SQLiteConnection.SQLITE_OPEN_READWRITE;
+import static com.darkyen.sqlitelite.SQLiteNative.nativeExecutePragma;
 
 /**
- * Serves as a base for
+ * Provides configuration for newly opened {@link SQLiteConnection}.
+ * Contains callbacks used for initial database configuration and version migrations.
+ * <p>
+ * Setting is in variables, such as {@link #version}, {@link #openFlags} and {@link #foreignKeyConstraintsEnabled}.
  */
 public abstract class SQLiteDelegate {
     private static final String TAG = "SQLiteDelegate";
 
-    public final @Nullable File file;
+    final @Nullable File file;
     /**
      * The version used when opening a connection.
      * If the value is 0 or less, it means "don't care". Otherwise, the version is enforced.
@@ -46,10 +50,17 @@ public abstract class SQLiteDelegate {
      * This method should only call methods that configure the parameters of the
      * database connection, such as executing PRAGMA statements.
      * </p>
+     * Default implementation sets up {@link #foreignKeyConstraintsEnabled}
+     * and changes journal mode to WAL.
      *
      * @param db The database.
      */
-    public void onConfigure(SQLiteConnection db) {}
+    public void onConfigure(SQLiteConnection db) {
+        db.pragma("PRAGMA foreign_keys=" + (foreignKeyConstraintsEnabled ? "1" : "0"));
+        if (file != null) {
+            db.pragma("PRAGMA journal_mode=wal");
+        }
+    }
 
     /**
      * Called when the database is created for the first time. This is where the
