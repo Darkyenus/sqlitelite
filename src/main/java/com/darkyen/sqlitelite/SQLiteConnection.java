@@ -179,7 +179,13 @@ public class SQLiteConnection implements AutoCloseable {
             @NotNull
             @Language("RoomSql"/*Should be just SQL, but that is not supported on community :( */)
             String sql) {
-        long statementPtr = nativePrepareStatement(connectionPtr(), sql);
+        long statementPtr;
+        try {
+            statementPtr = nativePrepareStatement(connectionPtr(), sql);
+        } catch (Exception e) {
+            e.addSuppressed(new SQLiteException("While preparing: '"+sql+"'"));
+            throw e;
+        }
         return new SQLiteStatement(this, statementPtr);
     }
 
@@ -233,7 +239,12 @@ public class SQLiteConnection implements AutoCloseable {
      * Perform a PRAGMA SQL command and return the result, if any.
      */
     public @Nullable String pragma(@NotNull @Language("RoomSql") String sql) {
-        return SQLiteNative.nativeExecutePragma(connectionPtr(), sql);
+        try {
+            return SQLiteNative.nativeExecutePragma(connectionPtr(), sql);
+        } catch (Exception e) {
+            e.addSuppressed(new SQLiteException("While running pragma: '"+sql+"'"));
+            throw e;
+        }
     }
 
     /**

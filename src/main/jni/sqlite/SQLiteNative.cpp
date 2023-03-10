@@ -18,19 +18,13 @@
 #define LOG_TAG "SQLiteConnection"
 
 #include <jni.h>
-#include <sys/mman.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <assert.h>
 
 #include "sqlite3ex.h"
 #include "JNIHelp.h"
 #include "ALog-priv.h"
 #include "android_database_SQLiteCommon.h"
-
-// Set to 1 to use UTF16 storage for localized indexes.
-#define UTF16_STORAGE 0
 
 namespace android {
 
@@ -149,18 +143,7 @@ static sqlite3_stmt* prepareStatement(JNIEnv* env, sqlite3* dbConnection, jstrin
         return statement;
     }
 
-    // Error messages like 'near ")": syntax error' are not
-    // always helpful enough, so construct an error string that
-    // includes the query itself.
-    const char *query = env->GetStringUTFChars(sqlString, NULL);
-    char *message = (char*) malloc(strlen(query) + 50);
-    if (message) {
-        strcpy(message, ", while compiling: "); // less than 50 chars
-        strcat(message, query);
-    }
-    env->ReleaseStringUTFChars(sqlString, query);
-    throw_sqlite3_exception(env, dbConnection, message);
-    free(message);
+    throw_sqlite3_exception(env, dbConnection, NULL);
     return NULL;
 }
 
@@ -570,18 +553,20 @@ static JNINativeMethod sMethods[] =
 } // namespace android
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
-  JNIEnv *env = 0;
+    JNIEnv *env = 0;
+    if (vm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        return JNI_ERR;
+    }
 
-  vm->GetEnv((void**)&env, JNI_VERSION_1_4);
+    jclass c = env->FindClass("com/darkyen/sqlitelite/SQLiteNative");
+    if (c == NULL) return JNI_ERR;
+    if (env->RegisterNatives(c, android::sMethods, NELEM(android::sMethods)) != JNI_OK) {
+        return JNI_ERR;
+    }
 
-  jniRegisterNativeMethods(env,
-      "com/darkyen/sqlitelite/SQLiteNative",
-      android::sMethods, NELEM(android::sMethods)
-  );
+    android::sqliteInitialize();
 
-  android::sqliteInitialize();
-
-  return JNI_VERSION_1_4;
+    return JNI_VERSION_1_6;
 }
 
 
