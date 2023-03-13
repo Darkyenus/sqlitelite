@@ -96,7 +96,7 @@ public final class SQLiteStatement implements AutoCloseable {
      * Keeps any bindings.
      * @throws SQLiteException on any error
      */
-    public void execute() {
+    public void executeForAnything() {
         assertNormalState();
         SQLiteNative.nativeExecuteIgnoreAndReset(connection.connectionPtr(), statementPtr());
     }

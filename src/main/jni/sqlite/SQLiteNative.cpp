@@ -503,7 +503,7 @@ static void nativeInterrupt(JNIEnv* env, jobject clazz, jlong connectionPtr) {
     sqlite3_interrupt(dbConnection);
 }
 
-static JNINativeMethod sMethods[] =
+static const JNINativeMethod sMethods[] =
 {
     /* name, signature, funcPtr */
     { "nativeOpen", "(Ljava/lang/String;I)J",
@@ -560,7 +560,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     jclass c = env->FindClass("com/darkyen/sqlitelite/SQLiteNative");
     if (c == NULL) return JNI_ERR;
-    if (env->RegisterNatives(c, android::sMethods, NELEM(android::sMethods)) != JNI_OK) {
+    if (env->RegisterNatives(c, android::sMethods, sizeof(android::sMethods) / sizeof(JNINativeMethod)) != JNI_OK) {
         return JNI_ERR;
     }
 
