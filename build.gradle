@@ -11,7 +11,7 @@ String SQLITE_VERSION = "3.48.0"
 
 String LIB_GROUP = "com.darkyen"
 String LIB_NAME = "sqlitelite"
-String LIB_VERSION = "${SQLITE_VERSION}.0"
+String LIB_VERSION = "${SQLITE_VERSION}.1"
 
 
 android {
