@@ -6,8 +6,8 @@ plugins {
     id 'maven-publish'
 }
 
-String SQLITE_SOURCE_URL = "https://www.sqlite.org/2023/sqlite-amalgamation-3410000.zip"
-String SQLITE_VERSION = "3.41.0"
+String SQLITE_SOURCE_URL = "https://sqlite.org/2025/sqlite-amalgamation-3480000.zip"
+String SQLITE_VERSION = "3.48.0"
 
 String LIB_GROUP = "com.darkyen"
 String LIB_NAME = "sqlitelite"
@@ -15,11 +15,13 @@ String LIB_VERSION = "${SQLITE_VERSION}.0"
 
 
 android {
-    compileSdk 34
+    compileSdk 35
     ndkVersion '28.0.12916984'
 
     defaultConfig {
         minSdkVersion 21
+        targetSdk 35
+
         versionName = LIB_VERSION
         namespace = LIB_GROUP+"."+LIB_NAME
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
@@ -42,8 +44,8 @@ android {
         abortOnError false
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
     externalNativeBuild {
         ndkBuild {

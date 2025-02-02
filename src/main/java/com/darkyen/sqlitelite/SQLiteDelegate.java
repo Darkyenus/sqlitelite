@@ -27,7 +27,7 @@ public abstract class SQLiteDelegate {
      * If the value is 0 or less, it means "don't care". Otherwise, the version is enforced.
      */
     protected int version = 0;
-    protected int openFlags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOFOLLOW;
+    protected int openFlags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE;
     /** True if foreign key constraints are enabled. Default is false. */
     protected boolean foreignKeyConstraintsEnabled = false;
 
@@ -136,7 +136,6 @@ public abstract class SQLiteDelegate {
     public void onCorruption(SQLiteConnection dbObj) {
         final File file = this.file;
         Log.e(TAG, "Corruption reported by sqlite on database: " + file);
-        //TODO If the corruption is recoverable, recover
         dbObj.close();
         if (file != null) {
             SQLiteDatabase.deleteDatabase(file);
