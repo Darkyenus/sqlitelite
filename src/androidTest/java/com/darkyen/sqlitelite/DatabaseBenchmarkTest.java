@@ -18,6 +18,7 @@ import java.util.function.IntConsumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+// Benchmark results end up in logcat. Search for "BENCHMARK RESULTS" and following logs.
 @Suppress
 @RunWith(AndroidJUnit4.class)
 public class DatabaseBenchmarkTest {
